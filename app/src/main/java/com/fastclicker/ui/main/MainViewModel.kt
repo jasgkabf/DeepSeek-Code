@@ -1,9 +1,9 @@
-package com.autoclicker.ui.main
+package com.fastclicker.ui.main
 
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
-import com.autoclicker.model.ClickSpeed
+import com.fastclicker.model.ClickSpeed
 
 class MainViewModel : ViewModel() {
 

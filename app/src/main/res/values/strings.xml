@@ -1,26 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">自动点击器</string>
-    <string name="accessibility_service_description">自动点击器需要无障碍服务来模拟屏幕点击操作。此服务不会收集或上传任何个人信息。</string>
+    <string name="app_name">闪电连点器</string>
+    <string name="accessibility_service_description">闪电连点器需要无障碍服务权限来模拟屏幕点击操作。这是安卓系统的安全机制，本应用不会收集或上传任何个人信息，请放心使用。
+
+使用说明：
+1. 开启无障碍服务后，点击悬浮按钮开始/停止连点
+2. 长按悬浮按钮可进入位置选择模式，选择要点击的目标位置
+3. 再次点击悬浮按钮即可在选中位置开始连点</string>
     
-    <string name="speed_fast">快速</string>
-    <string name="speed_normal">正常</string>
+    <string name="speed_fast">极速</string>
+    <string name="speed_normal">标准</string>
     <string name="speed_slow">慢速</string>
     
-    <string name="click_count_infinite">无限点击</string>
-    <string name="click_count_label">点击次数</string>
-    <string name="click_speed_label">点击速度</string>
+    <string name="click_count_infinite">无限连点</string>
+    <string name="click_count_label">连点次数</string>
+    <string name="click_speed_label">连点速度</string>
     
     <string name="start_floating_button">启动悬浮按钮</string>
     <string name="stop_floating_button">停止悬浮按钮</string>
     
-    <string name="permission_required">需要权限</string>
-    <string name="accessibility_permission_required">请开启无障碍服务权限</string>
-    <string name="overlay_permission_required">请开启悬浮窗权限</string>
-    <string name="go_to_settings">前往设置</string>
+    <string name="permission_required">需要必要权限</string>
+    <string name="accessibility_permission_required">无障碍服务：用于模拟屏幕点击</string>
+    <string name="overlay_permission_required">悬浮窗权限：用于显示控制按钮</string>
+    <string name="go_to_settings">立即开启</string>
     
-    <string name="status_running">运行中</string>
+    <string name="status_running">连点中</string>
     <string name="status_stopped">已停止</string>
+    <string name="status_select_position">请选择点击位置</string>
     
     <string name="settings">设置</string>
     <string name="about">关于</string>
@@ -28,5 +34,17 @@
     <string name="click_interval">点击间隔</string>
     <string name="milliseconds">毫秒</string>
     
-    <string name="hint_click_count">输入次数</string>
+    <string name="hint_click_count">输入连点次数</string>
+    <string name="target_position">目标位置</string>
+    <string name="position_not_set">未设置</string>
+    <string name="position_set">已设置</string>
+    <string name="select_position_hint">长按悬浮按钮选择点击位置</string>
+    
+    <string name="permission_explanation">为了提供自动点击功能，本应用需要以下权限：
+
+• 悬浮窗权限：在屏幕上显示可拖动的控制按钮
+
+• 无障碍服务：模拟屏幕点击操作（安卓系统安全机制要求）
+
+您的数据安全是我们的首要任务，本应用不会收集或上传任何个人信息。</string>
 </resources>

@@ -1,4 +1,4 @@
-package com.autoclicker.service
+package com.fastclicker.service
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
@@ -7,8 +7,8 @@ import android.graphics.Path
 import android.os.Handler
 import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
-import com.autoclicker.model.ClickConfig
-import com.autoclicker.model.ClickSpeed
+import com.fastclicker.model.ClickConfig
+import com.fastclicker.model.ClickSpeed
 
 class AutoClickService : AccessibilityService() {
 

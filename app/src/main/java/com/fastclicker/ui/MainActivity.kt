@@ -1,12 +1,12 @@
-package com.autoclicker.ui
+package com.fastclicker.ui
 
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.navigation.findNavController
 import androidx.navigation.ui.AppBarConfiguration
 import androidx.navigation.ui.setupActionBarWithNavController
-import com.autoclicker.R
-import com.autoclicker.databinding.ActivityMainBinding
+import com.fastclicker.R
+import com.fastclicker.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
 

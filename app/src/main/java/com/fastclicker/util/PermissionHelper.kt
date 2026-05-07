@@ -1,4 +1,4 @@
-package com.autoclicker.util
+package com.fastclicker.util
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
@@ -9,7 +9,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.view.accessibility.AccessibilityManager
-import com.autoclicker.service.AutoClickService
+import com.fastclicker.service.AutoClickService
 
 object PermissionHelper {
 

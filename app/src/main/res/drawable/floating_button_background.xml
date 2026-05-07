@@ -10,6 +10,12 @@
             <solid android:color="@color/floating_button_running" />
         </shape>
     </item>
+    <item android:state_selected="true">
+        <shape android:shape="oval">
+            <solid android:color="@color/floating_button_selecting" />
+            <stroke android:width="3dp" android:color="#FFFFFF" />
+        </shape>
+    </item>
     <item>
         <shape android:shape="oval">
             <solid android:color="@color/floating_button_normal" />

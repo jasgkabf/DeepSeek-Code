@@ -1,15 +1,23 @@
-<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <group android:scaleX="0.5" android:scaleY="0.5" android:translateX="27" android:translateY="27">
-        <path
-            android:fillColor="#FFFFFF"
-            android:pathData="M54,27C39.1,27 27,39.1 27,54s12.1,27 27,27 27,-12.1 27,-27S68.9,27 54,27zM54,72c-9.9,0 -18,-8.1 -18,-18s8.1,-18 18,-18 18,8.1 18,18S63.9,72 54,72z" />
-        <path
-            android:fillColor="#FFFFFF"
-            android:pathData="M54,45c-5,0 -9,4 -9,9s4,9 9,9 9,-4 9,-9S59,45 54,45z" />
-    </group>
+    <defs>
+        <linearGradient android:id="lightningGradient" android:x1="0%" android:y1="0%" android:x2="100%" android:y2="100%">
+            <stop android:offset="0%" android:color="#FFD700" />
+            <stop android:offset="50%" android:color="#FF8C00" />
+            <stop android:offset="100%" android:color="#FF6B35" />
+        </linearGradient>
+    </defs>
+    
+    <rect
+        android:width="108"
+        android:height="108"
+        android:fill="#FF6B35"
+        android:rx="16" />
+    
+    <polygon
+        android:fill="url(#lightningGradient)"
+        android:points="54,15 42,45 25,45 48,65 38,95 54,72 70,95 60,65 83,45 66,45" />
 </vector>

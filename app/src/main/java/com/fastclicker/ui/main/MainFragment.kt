@@ -1,4 +1,4 @@
-package com.autoclicker.ui.main
+package com.fastclicker.ui.main
 
 import android.content.Intent
 import android.os.Bundle
@@ -8,11 +8,11 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
-import com.autoclicker.R
-import com.autoclicker.databinding.FragmentMainBinding
-import com.autoclicker.model.ClickSpeed
-import com.autoclicker.service.FloatingButtonService
-import com.autoclicker.util.PermissionHelper
+import com.fastclicker.R
+import com.fastclicker.databinding.FragmentMainBinding
+import com.fastclicker.model.ClickSpeed
+import com.fastclicker.service.FloatingButtonService
+import com.fastclicker.util.PermissionHelper
 
 class MainFragment : Fragment() {
 
@@ -106,13 +106,21 @@ class MainFragment : Fragment() {
 
         if (hasOverlay && hasAccessibility) {
             binding.permissionCard.visibility = View.GONE
+            binding.permissionExplanation.visibility = View.GONE
         } else {
             binding.permissionCard.visibility = View.VISIBLE
+            binding.permissionExplanation.visibility = View.VISIBLE
 
-            val message = when {
-                !hasOverlay && !hasAccessibility -> "需要开启悬浮窗权限和无障碍服务权限"
-                !hasOverlay -> getString(R.string.overlay_permission_required)
-                else -> getString(R.string.accessibility_permission_required)
+            val message = buildString {
+                if (!hasOverlay) {
+                    append(getString(R.string.overlay_permission_required))
+                }
+                if (!hasOverlay && !hasAccessibility) {
+                    append("\n")
+                }
+                if (!hasAccessibility) {
+                    append(getString(R.string.accessibility_permission_required))
+                }
             }
             binding.permissionMessage.text = message
         }
@@ -131,7 +139,7 @@ class MainFragment : Fragment() {
     private fun startFloatingButton() {
         if (!PermissionHelper.hasAllPermissions(requireContext())) {
             updatePermissionCard()
-            Toast.makeText(requireContext(), "请先授予所有必要权限", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), "请先授予必要权限", Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -152,7 +160,7 @@ class MainFragment : Fragment() {
 
         requireContext().startForegroundService(intent)
 
-        Toast.makeText(requireContext(), "悬浮按钮已启动", Toast.LENGTH_SHORT).show()
+        Toast.makeText(requireContext(), "悬浮按钮已启动\n长按按钮选择点击位置", Toast.LENGTH_SHORT).show()
 
         requireActivity().moveTaskToBack(true)
     }

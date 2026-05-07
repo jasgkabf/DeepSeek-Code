@@ -1,4 +1,4 @@
-package com.autoclicker.model
+package com.fastclicker.model
 
 data class ClickConfig(
     val speed: ClickSpeed = ClickSpeed.NORMAL,

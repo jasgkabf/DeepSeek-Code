@@ -1,27 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="primary">#2196F3</color>
-    <color name="primary_dark">#1976D2</color>
-    <color name="primary_light">#BBDEFB</color>
-    <color name="accent">#4CAF50</color>
-    <color name="accent_dark">#388E3C</color>
-    <color name="error">#F44336</color>
-    <color name="warning">#FF9800</color>
+    <color name="primary">#FF6B35</color>
+    <color name="primary_dark">#CC5528</color>
+    <color name="primary_light">#FF8A5B</color>
+    <color name="accent">#FFD23F</color>
+    <color name="accent_dark">#E6BB00</color>
+    <color name="error">#FF4757</color>
+    <color name="warning">#FFA502</color>
     
-    <color name="background">#FAFAFA</color>
+    <color name="background">#FFFFFF</color>
     <color name="surface">#FFFFFF</color>
-    <color name="surface_variant">#F5F5F5</color>
+    <color name="surface_variant">#F8F9FA</color>
     
-    <color name="text_primary">#212121</color>
-    <color name="text_secondary">#757575</color>
+    <color name="text_primary">#1A1A2E</color>
+    <color name="text_secondary">#525252</color>
     <color name="text_hint">#9E9E9E</color>
     
-    <color name="divider">#E0E0E0</color>
+    <color name="divider">#E8E8E8</color>
     
-    <color name="status_running">#4CAF50</color>
+    <color name="status_running">#2ED573</color>
     <color name="status_stopped">#9E9E9E</color>
     
-    <color name="floating_button_normal">#2196F3</color>
-    <color name="floating_button_running">#4CAF50</color>
-    <color name="floating_button_pressed">#1976D2</color>
+    <color name="floating_button_normal">#FF6B35</color>
+    <color name="floating_button_running">#2ED573</color>
+    <color name="floating_button_pressed">#CC5528</color>
+    <color name="floating_button_selecting">#FFD23F</color>
+    
+    <color name="lightning_yellow">#FFD700</color>
+    <color name="lightning_orange">#FF8C00</color>
 </resources>
