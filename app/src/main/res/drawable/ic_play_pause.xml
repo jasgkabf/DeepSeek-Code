@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<animated-selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/state_running" android:state_activated="true">
+        <vector android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+            <path android:fillColor="#FFFFFF" android:pathData="M6,6h12v12H6z" />
+        </vector>
+    </item>
+    <item android:id="@+id/state_stopped">
+        <vector android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+            <path android:fillColor="#FFFFFF" android:pathData="M8,5v14l11-7z" />
+        </vector>
+    </item>
+    <transition android:drawable="@android:drawable/ic_media_play" android:fromId="@id/state_running" android:toId="@id/state_stopped" />
+    <transition android:drawable="@android:drawable/ic_media_pause" android:fromId="@id/state_stopped" android:toId="@id/state_running" />
+</animated-selector>
