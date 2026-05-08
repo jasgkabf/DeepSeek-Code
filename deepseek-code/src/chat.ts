@@ -3,8 +3,8 @@ import chalk from 'chalk';
 import { DeepSeekCodeConfig, ChatMessage } from './types';
 import { Session, createSession, loadLatestSession, loadSession, deleteSession, listSessions, addToSession, clearSessionMessages, trimSessionContext, saveSession } from './session';
 import { runAgent } from './agent';
-import { showUserPrefix, showAssistantPrefix, showDivider, showInfo, showSuccess, showWarning, showError, showErrorWithSuggestion, askConfirmation, brand } from './ui/display';
-import { showConfig, setConfigValue } from './config';
+import { showUserPrefix, showAssistantPrefix, showDivider, showInfo, showSuccess, showWarning, showError, showErrorWithSuggestion, askConfirmation, askInput, brand } from './ui/display';
+import { showConfig, setConfigValue, switchModelWizard } from './config';
 
 export class Chat {
   private config: DeepSeekCodeConfig;
@@ -34,7 +34,8 @@ export class Chat {
     this.running = true;
 
     if (this.session.messages.length > 0) {
-      showInfo(`已恢复上次会话 (${this.session.messages.filter((m: ChatMessage) => m.role === 'user').length} 条历史消息)`);
+      const userCount = this.session.messages.filter((m: ChatMessage) => m.role === 'user').length;
+      showInfo(`已恢复上次会话 (${userCount} 条历史消息)`);
       showDivider();
     }
 
@@ -83,6 +84,11 @@ export class Chat {
       case '/config':
         showConfig(this.config);
         break;
+      case '/setup': {
+        const newConfig = await switchModelWizard(this.config);
+        this.config = newConfig;
+        break;
+      }
       case '/set': {
         if (parts.length < 3) {
           showWarning('用法: /set <key> <value>，例如: /set model deepseek-chat');
@@ -96,50 +102,31 @@ export class Chat {
       case '/history':
         this.showHistory();
         break;
-      case '/new':
+      case '/new': {
+        saveSession(this.session);
         this.session = createSession();
-        showSuccess('已创建新会话');
+        showSuccess('已创建新会话，旧会话已保存');
+        showInfo('输入 /sessions 可查看历史会话，/load <id> 切换回去');
         showDivider();
         break;
+      }
       case '/sessions':
-        this.showSessions();
+        await this.showSessionsInteractive();
         break;
       case '/load': {
         if (parts.length < 2) {
-          showWarning('用法: /load <session_id>');
+          showWarning('用法: /load <序号或会话ID>');
           return;
         }
-        const sessionId = parts[1];
-        const loaded = loadSession(sessionId);
-        if (!loaded) {
-          showError(`会话不存在: ${sessionId}`);
-          return;
-        }
-        saveSession(this.session);
-        this.session = loaded;
-        showSuccess(`已加载会话: ${sessionId} (${loaded.messages.filter((m) => m.role === 'user').length} 条消息)`);
-        showDivider();
+        await this.loadSessionById(parts[1]);
         break;
       }
       case '/delete': {
         if (parts.length < 2) {
-          showWarning('用法: /delete <session_id>');
+          showWarning('用法: /delete <序号或会话ID>');
           return;
         }
-        const delId = parts[1];
-        if (delId === this.session.id) {
-          showError('不能删除当前活跃会话');
-          return;
-        }
-        const confirmed = await askConfirmation(`确认删除会话 ${delId}?`);
-        if (confirmed) {
-          const deleted = deleteSession(delId);
-          if (deleted) {
-            showSuccess(`会话已删除: ${delId}`);
-          } else {
-            showError(`会话不存在: ${delId}`);
-          }
-        }
+        await this.deleteSessionById(parts[1]);
         break;
       }
       case '/cd': {
@@ -169,15 +156,19 @@ export class Chat {
   private showHelp(): void {
     console.log();
     showInfo(`${brand()} 可用命令:`);
-    console.log('  /help              - 显示帮助信息');
-    console.log('  /clear             - 清空当前会话上下文');
+    console.log();
+    console.log(chalk.bold('  💬 聊天管理'));
+    console.log('  /new               - 开始新聊天（旧聊天自动保存）');
+    console.log('  /sessions          - 查看/切换历史聊天');
+    console.log('  /history           - 查看当前对话历史');
+    console.log('  /clear             - 清空当前聊天上下文');
+    console.log();
+    console.log(chalk.bold('  ⚙ 模型与配置'));
+    console.log('  /setup             - 切换 AI 模型（向导式，推荐！）');
     console.log('  /config            - 查看当前配置');
-    console.log('  /set <key> <value> - 动态修改配置项');
-    console.log('  /history           - 查看对话历史');
-    console.log('  /new               - 创建新会话');
-    console.log('  /sessions          - 列出所有历史会话');
-    console.log('  /load <id>         - 加载指定会话');
-    console.log('  /delete <id>       - 删除指定会话');
+    console.log('  /set <key> <value> - 修改单个配置项');
+    console.log();
+    console.log(chalk.bold('  📁 其他'));
     console.log('  /cd [path]         - 查看/切换项目目录');
     console.log('  /exit              - 退出 DeepSeek Code');
     console.log();
@@ -200,23 +191,102 @@ export class Chat {
     console.log();
   }
 
-  private showSessions(): void {
+  private async showSessionsInteractive(): Promise<void> {
     const sessions = listSessions();
     if (sessions.length === 0) {
       showInfo('暂无历史会话');
       return;
     }
     console.log();
-    showInfo(`历史会话 (${sessions.length} 个):`);
-    for (const s of sessions) {
+    showInfo(`历史聊天 (${sessions.length} 个):`);
+    console.log();
+    for (let i = 0; i < sessions.length; i++) {
+      const s = sessions[i];
       const isActive = s.id === this.session.id;
-      const prefix = isActive ? chalk.green('* ') : '  ';
+      const prefix = isActive ? chalk.green('  ▶ ') : '    ';
       const date = new Date(s.createdAt).toLocaleString('zh-CN');
-      console.log(`${prefix}${chalk.bold(s.id)} - ${date} (${s.messageCount} 条消息)${isActive ? chalk.green(' [当前]') : ''}`);
+      const firstMsg = s.messageCount > 0 ? '' : chalk.dim(' (空)');
+      console.log(`${prefix}${chalk.bold(i + 1)}. ${date} (${s.messageCount} 条消息)${firstMsg}${isActive ? chalk.green(' ← 当前') : ''}`);
     }
     console.log();
-    showInfo('使用 /load <id> 加载会话，/delete <id> 删除会话');
-    console.log();
+    const answer = await askInput('输入序号切换到该聊天，或回车返回');
+    if (!answer) return;
+
+    const idx = parseInt(answer) - 1;
+    if (isNaN(idx) || idx < 0 || idx >= sessions.length) {
+      showWarning('无效序号');
+      return;
+    }
+
+    const target = sessions[idx];
+    if (target.id === this.session.id) {
+      showInfo('已经是当前会话');
+      return;
+    }
+
+    saveSession(this.session);
+    const loaded = loadSession(target.id);
+    if (loaded) {
+      this.session = loaded;
+      showSuccess(`已切换到聊天 ${idx + 1} (${loaded.messages.filter((m) => m.role === 'user').length} 条消息)`);
+      showDivider();
+    } else {
+      showError('加载会话失败');
+    }
+  }
+
+  private async loadSessionById(idOrIndex: string): Promise<void> {
+    const sessions = listSessions();
+    const idx = parseInt(idOrIndex) - 1;
+    let targetId: string;
+
+    if (!isNaN(idx) && idx >= 0 && idx < sessions.length) {
+      targetId = sessions[idx].id;
+    } else {
+      targetId = idOrIndex;
+    }
+
+    if (targetId === this.session.id) {
+      showInfo('已经是当前会话');
+      return;
+    }
+
+    const loaded = loadSession(targetId);
+    if (!loaded) {
+      showError(`会话不存在: ${idOrIndex}`);
+      return;
+    }
+    saveSession(this.session);
+    this.session = loaded;
+    showSuccess(`已加载会话 (${loaded.messages.filter((m) => m.role === 'user').length} 条消息)`);
+    showDivider();
+  }
+
+  private async deleteSessionById(idOrIndex: string): Promise<void> {
+    const sessions = listSessions();
+    const idx = parseInt(idOrIndex) - 1;
+    let targetId: string;
+
+    if (!isNaN(idx) && idx >= 0 && idx < sessions.length) {
+      targetId = sessions[idx].id;
+    } else {
+      targetId = idOrIndex;
+    }
+
+    if (targetId === this.session.id) {
+      showError('不能删除当前活跃会话');
+      return;
+    }
+
+    const confirmed = await askConfirmation('确认删除该会话?');
+    if (confirmed) {
+      const deleted = deleteSession(targetId);
+      if (deleted) {
+        showSuccess('会话已删除');
+      } else {
+        showError('会话不存在');
+      }
+    }
   }
 
   private async handleUserMessage(input: string): Promise<void> {
@@ -243,11 +313,11 @@ export class Chat {
     } catch (err: any) {
       const msg = err.message || '';
       if (msg.includes('401') || msg.includes('认证')) {
-        showErrorWithSuggestion(`处理消息时出错: ${msg}`, '请检查 API Key 是否正确，可使用 /set apiKey <key> 更新');
+        showErrorWithSuggestion(`处理消息时出错: ${msg}`, '请检查 API Key 是否正确，输入 /setup 重新配置');
       } else if (msg.includes('429') || msg.includes('速率')) {
         showErrorWithSuggestion(`处理消息时出错: ${msg}`, '请稍后重试，或检查 API 账户余额');
       } else if (msg.includes('ECONNREFUSED') || msg.includes('ENOTFOUND')) {
-        showErrorWithSuggestion(`处理消息时出错: ${msg}`, '请检查网络连接和 API Base URL 是否正确');
+        showErrorWithSuggestion(`处理消息时出错: ${msg}`, '请检查网络连接，输入 /setup 确认 API 地址');
       } else {
         showError(`处理消息时出错: ${msg}`);
       }

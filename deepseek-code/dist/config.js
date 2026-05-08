@@ -38,6 +38,7 @@ exports.loadConfig = loadConfig;
 exports.saveConfig = saveConfig;
 exports.isConfigured = isConfigured;
 exports.setupWizard = setupWizard;
+exports.switchModelWizard = switchModelWizard;
 exports.showConfig = showConfig;
 exports.setConfigValue = setConfigValue;
 const fs = __importStar(require("fs"));
@@ -48,6 +49,15 @@ const crypto_1 = require("./crypto");
 const display_1 = require("./ui/display");
 const CONFIG_DIR = path.join(os.homedir(), '.deepseek-code');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
+const PRESETS = [
+    { name: 'DeepSeek', provider: 'openai', apiBase: 'https://api.deepseek.com/v1', model: 'deepseek-chat', temperature: 0.7, topP: 1.0 },
+    { name: 'DeepSeek (推理)', provider: 'openai', apiBase: 'https://api.deepseek.com/v1', model: 'deepseek-reasoner', temperature: 0.7, topP: 1.0 },
+    { name: '小米 MiMo', provider: 'openai', apiBase: 'https://api.xiaomimimo.com/v1', model: 'mimo-v2.5-pro', temperature: 1.0, topP: 0.95 },
+    { name: 'OpenAI (GPT-4o)', provider: 'openai', apiBase: 'https://api.openai.com/v1', model: 'gpt-4o', temperature: 0.7, topP: 1.0 },
+    { name: 'OpenAI (GPT-4o-mini)', provider: 'openai', apiBase: 'https://api.openai.com/v1', model: 'gpt-4o-mini', temperature: 0.7, topP: 1.0 },
+    { name: 'Claude (Anthropic)', provider: 'claude', apiBase: 'https://api.anthropic.com/v1', model: 'claude-sonnet-4-20250514', temperature: 0.7, topP: 1.0 },
+    { name: '自定义', provider: 'openai', apiBase: '', model: '', temperature: 0.7, topP: 1.0 },
+];
 function ensureConfigDir() {
     if (!fs.existsSync(CONFIG_DIR)) {
         fs.mkdirSync(CONFIG_DIR, { recursive: true });
@@ -81,38 +91,92 @@ function saveConfig(config) {
 function isConfigured(config) {
     return config.apiKey.length > 0;
 }
+function showPresets() {
+    console.log();
+    (0, display_1.showInfo)('请选择你要用的 AI 模型（输入数字）:');
+    PRESETS.forEach((p, i) => {
+        console.log(`  ${i + 1}. ${p.name}`);
+    });
+    console.log();
+}
 async function setupWizard() {
     (0, display_1.showInfo)('首次使用 DeepSeek Code，请配置 API 信息');
     console.log();
-    const providerInput = await (0, display_1.askInput)('API 供应商 (openai/claude，回车使用默认 openai)');
-    const provider = providerInput === 'claude' ? 'claude' : 'openai';
-    const defaultApiBase = provider === 'claude'
-        ? 'https://api.anthropic.com/v1'
-        : 'https://api.deepseek.com/v1';
-    const defaultModel = provider === 'claude'
-        ? 'claude-sonnet-4-20250514'
-        : 'deepseek-chat';
-    const apiKey = await (0, display_1.askInput)('API Key');
-    const apiBase = (await (0, display_1.askInput)(`API Base URL (回车使用默认值 ${defaultApiBase})`)) || defaultApiBase;
-    const model = (await (0, display_1.askInput)(`模型名称 (回车使用默认值 ${defaultModel})`)) || defaultModel;
-    const config = {
-        apiKey,
-        apiBase: apiBase.replace(/\/+$/, ''),
-        model,
-        maxTokens: types_1.DEFAULT_CONFIG.maxTokens,
-        temperature: types_1.DEFAULT_CONFIG.temperature,
-        topP: types_1.DEFAULT_CONFIG.topP,
-        frequencyPenalty: types_1.DEFAULT_CONFIG.frequencyPenalty,
-        presencePenalty: types_1.DEFAULT_CONFIG.presencePenalty,
-        safeMode: types_1.DEFAULT_CONFIG.safeMode,
-        provider,
-        projectDir: process.cwd(),
-        maxContextTokens: types_1.DEFAULT_CONFIG.maxContextTokens,
-    };
+    const config = await runModelSetup({ ...types_1.DEFAULT_CONFIG, projectDir: process.cwd() });
     saveConfig(config);
     (0, display_1.showSuccess)('配置已保存到 ' + CONFIG_FILE);
     console.log();
     return config;
+}
+async function switchModelWizard(config) {
+    (0, display_1.showInfo)('当前模型: ' + config.model + ' (' + config.apiBase + ')');
+    console.log();
+    const newConfig = await runModelSetup(config);
+    saveConfig(newConfig);
+    (0, display_1.showSuccess)('模型切换成功！当前模型: ' + newConfig.model);
+    console.log();
+    return newConfig;
+}
+async function runModelSetup(config) {
+    showPresets();
+    const choice = await (0, display_1.askInput)('请输入序号 (1-' + PRESETS.length + ')');
+    const idx = parseInt(choice) - 1;
+    if (idx < 0 || idx >= PRESETS.length || isNaN(idx)) {
+        (0, display_1.showWarning)('无效选择，使用默认 DeepSeek');
+        return config;
+    }
+    const preset = PRESETS[idx];
+    if (preset.name === '自定义') {
+        return await customSetup(config);
+    }
+    console.log();
+    (0, display_1.showInfo)('你选择了: ' + preset.name);
+    console.log();
+    const apiKey = await (0, display_1.askInput)('请输入 API Key');
+    if (!apiKey) {
+        (0, display_1.showWarning)('API Key 不能为空');
+        return config;
+    }
+    const model = (await (0, display_1.askInput)('模型名称 (回车使用 ' + preset.model + ')')) || preset.model;
+    return {
+        ...config,
+        provider: preset.provider,
+        apiBase: preset.apiBase,
+        model,
+        apiKey,
+        temperature: preset.temperature,
+        topP: preset.topP,
+        frequencyPenalty: 0,
+        presencePenalty: 0,
+    };
+}
+async function customSetup(config) {
+    console.log();
+    (0, display_1.showInfo)('自定义配置');
+    console.log();
+    const providerInput = await (0, display_1.askInput)('API 格式 (1=openai兼容, 2=claude，回车默认 openai)');
+    const provider = providerInput === '2' ? 'claude' : 'openai';
+    const defaultApiBase = provider === 'claude'
+        ? 'https://api.anthropic.com/v1'
+        : 'https://api.deepseek.com/v1';
+    const apiKey = await (0, display_1.askInput)('API Key');
+    if (!apiKey) {
+        (0, display_1.showWarning)('API Key 不能为空');
+        return config;
+    }
+    const apiBase = (await (0, display_1.askInput)('API 地址 (回车使用 ' + defaultApiBase + ')')) || defaultApiBase;
+    const model = await (0, display_1.askInput)('模型名称 (如 deepseek-chat, gpt-4o, mimo-v2.5-pro)');
+    if (!model) {
+        (0, display_1.showWarning)('模型名称不能为空');
+        return config;
+    }
+    return {
+        ...config,
+        provider,
+        apiBase: apiBase.replace(/\/+$/, ''),
+        model,
+        apiKey,
+    };
 }
 function showConfig(config) {
     (0, display_1.showInfo)('当前配置:');

@@ -11,7 +11,9 @@ export declare class Chat {
     private handleCommand;
     private showHelp;
     private showHistory;
-    private showSessions;
+    private showSessionsInteractive;
+    private loadSessionById;
+    private deleteSessionById;
     private handleUserMessage;
     stop(): void;
 }
