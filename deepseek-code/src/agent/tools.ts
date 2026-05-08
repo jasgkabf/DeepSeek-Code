@@ -5,6 +5,7 @@ import { ToolDefinition, ToolResult, DeepSeekCodeConfig } from '../types';
 import { isDangerousCommand, isWriteToProtectedPath, shouldConfirm, getDangerReason } from './safety';
 import { askConfirmation, showWarning, showToolCall, showToolResult, showProgress, clearProgress } from '../ui/display';
 import { detectEnvironment, isExternalStoragePath, getTermuxStorageHint, getRecommendedInstallCommand } from '../env';
+import { executeSkillTool, isSkillTool } from '../skills/loader';
 
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
@@ -480,8 +481,15 @@ export async function executeTool(name: string, argsStr: string): Promise<string
     case 'copy_to_clipboard':
       result = await executeCopyToClipboard(args);
       break;
-    default:
-      result = `错误: 未知工具 - ${name}`;
+    default: {
+      if (isSkillTool(name)) {
+        const skillResult = await executeSkillTool(name, args);
+        result = skillResult || `错误: Skill 工具执行失败 - ${name}`;
+      } else {
+        result = `错误: 未知工具 - ${name}`;
+      }
+      break;
+    }
   }
 
   const isError = result.startsWith('错误:');

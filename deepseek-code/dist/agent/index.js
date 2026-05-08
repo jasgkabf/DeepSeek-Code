@@ -5,6 +5,8 @@ const client_1 = require("../api/client");
 const tools_1 = require("./tools");
 const display_1 = require("../ui/display");
 const env_1 = require("../env");
+const loader_1 = require("../skills/loader");
+const manager_1 = require("../skills/manager");
 const MAX_AGENT_ITERATIONS = 10;
 function buildSystemPrompt() {
     const env = (0, env_1.detectEnvironment)();
@@ -16,11 +18,17 @@ function buildSystemPrompt() {
 - 可以使用 copy_to_clipboard 工具将代码复制到手机剪贴板
 - 屏幕较窄，输出代码时注意控制行宽`;
     }
+    const skills = (0, manager_1.listInstalledSkills)();
+    let skillNote = '';
+    if (skills.length > 0) {
+        const skillList = skills.map((s) => `${s.name} (${s.toolCount} 个工具: ${s.description})`).join('\n- ');
+        skillNote = `\n\n已安装的 Skills (扩展工具):\n- ${skillList}`;
+    }
     return {
         role: 'system',
         content: `你是 DeepSeek Code，一个强大的命令行 AI 编程助手。你可以帮助用户编写代码、调试问题、管理项目文件和执行命令。
 
-你具备以下工具能力：
+你具备以下内置工具能力：
 - read_file: 读取项目文件内容
 - list_directory: 遍历目录、查看文件列表（支持 depth 参数控制递归深度）
 - write_file: 创建新文件或覆盖写入文件
@@ -37,15 +45,22 @@ function buildSystemPrompt() {
 5. 遇到错误时分析原因并提供解决方案
 6. 生成的代码可使用 copy_to_clipboard 工具方便用户复制
 
-请用中文回复用户，代码注释使用英文。${envNote}`,
+请用中文回复用户，代码注释使用英文。${envNote}${skillNote}`,
     };
+}
+function getAllToolDefinitions() {
+    const builtIn = tools_1.TOOL_DEFINITIONS;
+    const skillTools = (0, loader_1.getSkillToolDefinitions)();
+    return [...builtIn, ...skillTools];
 }
 async function runAgent(options) {
     const { config, messages, onContent } = options;
     (0, tools_1.setToolConfig)(config);
+    (0, loader_1.loadAllSkills)();
     const systemPrompt = buildSystemPrompt();
     const allMessages = [systemPrompt, ...messages];
     const newMessages = [];
+    const allTools = getAllToolDefinitions();
     let iteration = 0;
     while (iteration < MAX_AGENT_ITERATIONS) {
         iteration++;
@@ -63,7 +78,7 @@ async function runAgent(options) {
         };
         let result;
         try {
-            result = await (0, client_1.chatCompletionStream)(allMessages, tools_1.TOOL_DEFINITIONS, config, callbacks);
+            result = await (0, client_1.chatCompletionStream)(allMessages, allTools, config, callbacks);
         }
         catch (err) {
             (0, display_1.showError)(`请求失败: ${err.message}`);

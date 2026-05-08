@@ -16,5 +16,7 @@ export declare class Chat {
     private deleteSessionById;
     private handleUserMessage;
     stop(): void;
+    private showSkills;
+    private handleSkillCommand;
 }
 //# sourceMappingURL=chat.d.ts.map

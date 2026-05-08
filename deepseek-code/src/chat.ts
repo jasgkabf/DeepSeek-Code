@@ -5,6 +5,8 @@ import { Session, createSession, loadLatestSession, loadSession, deleteSession, 
 import { runAgent } from './agent';
 import { showUserPrefix, showAssistantPrefix, showDivider, showInfo, showSuccess, showWarning, showError, showErrorWithSuggestion, askConfirmation, askInput, brand } from './ui/display';
 import { showConfig, setConfigValue, switchModelWizard } from './config';
+import { listInstalledSkills, installFromUrl, installFromFolder, removeSkill } from './skills/manager';
+import { clearLoadedSkills } from './skills/loader';
 
 export class Chat {
   private config: DeepSeekCodeConfig;
@@ -138,6 +140,17 @@ export class Chat {
         this.config = setConfigValue(this.config, 'projectDir', newDir);
         break;
       }
+      case '/skills':
+        this.showSkills();
+        break;
+      case '/skill': {
+        if (parts.length < 2) {
+          showWarning('用法: /skill install <网址或路径> | /skill remove <名称>');
+          return;
+        }
+        await this.handleSkillCommand(parts.slice(1));
+        break;
+      }
       case '/exit':
       case '/quit':
       case '/q':
@@ -171,6 +184,12 @@ export class Chat {
     console.log(chalk.bold('  📁 其他'));
     console.log('  /cd [path]         - 查看/切换项目目录');
     console.log('  /exit              - 退出 DeepSeek Code');
+    console.log();
+    console.log(chalk.bold('  🔌 Skills (扩展工具)'));
+    console.log('  /skills            - 查看已安装的 Skills');
+    console.log('  /skill install <网址>  - 从网址安装 Skill');
+    console.log('  /skill install <路径>  - 从本地文件夹安装 Skill');
+    console.log('  /skill remove <名称>   - 删除已安装的 Skill');
     console.log();
     showInfo('直接输入自然语言即可与 AI 对话，AI 可调用工具读写文件和执行命令');
     console.log();
@@ -329,5 +348,85 @@ export class Chat {
   stop(): void {
     this.running = false;
     this.rl.close();
+  }
+
+  private showSkills(): void {
+    const skills = listInstalledSkills();
+    if (skills.length === 0) {
+      showInfo('暂未安装任何 Skill');
+      showInfo('使用 /skill install <网址> 安装，或告诉 AI 帮你安装');
+      return;
+    }
+    console.log();
+    showInfo(`已安装的 Skills (${skills.length} 个):`);
+    console.log();
+    for (const skill of skills) {
+      console.log(`  🔌 ${chalk.bold(skill.name)} v${skill.version}`);
+      console.log(`     ${chalk.dim(skill.description)}`);
+      console.log(`     工具数: ${skill.toolCount}${skill.author ? ' | 作者: ' + skill.author : ''}`);
+      console.log();
+    }
+    showInfo('使用 /skill remove <名称> 删除，AI 可自动使用已安装的 Skill 工具');
+    console.log();
+  }
+
+  private async handleSkillCommand(parts: string[]): Promise<void> {
+    const subCmd = parts[0].toLowerCase();
+
+    switch (subCmd) {
+      case 'install': {
+        if (parts.length < 2) {
+          showWarning('用法: /skill install <网址或本地路径>');
+          showInfo('示例:');
+          showInfo('  /skill install https://github.com/user/my-skill');
+          showInfo('  /skill install /home/user/my-skill-folder');
+          return;
+        }
+        const source = parts.slice(1).join(' ');
+        showInfo(`正在安装 Skill: ${source}`);
+
+        let result;
+        if (source.startsWith('http://') || source.startsWith('https://') || source.endsWith('.git')) {
+          result = await installFromUrl(source);
+        } else {
+          result = installFromFolder(source);
+        }
+
+        if (result.success) {
+          showSuccess(result.message);
+          clearLoadedSkills();
+        } else {
+          showError(result.message);
+        }
+        break;
+      }
+      case 'remove':
+      case 'delete':
+      case 'uninstall': {
+        if (parts.length < 2) {
+          showWarning('用法: /skill remove <skill名称>');
+          const skills = listInstalledSkills();
+          if (skills.length > 0) {
+            showInfo('已安装: ' + skills.map((s) => s.name).join(', '));
+          }
+          return;
+        }
+        const skillName = parts.slice(1).join(' ');
+        const confirmed = await askConfirmation(`确认删除 Skill "${skillName}"?`);
+        if (confirmed) {
+          const result = removeSkill(skillName);
+          if (result.success) {
+            showSuccess(result.message);
+            clearLoadedSkills();
+          } else {
+            showError(result.message);
+          }
+        }
+        break;
+      }
+      default:
+        showWarning(`未知子命令: ${subCmd}`);
+        showInfo('可用: /skill install <网址或路径> | /skill remove <名称>');
+    }
   }
 }

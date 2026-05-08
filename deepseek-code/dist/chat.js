@@ -43,6 +43,8 @@ const session_1 = require("./session");
 const agent_1 = require("./agent");
 const display_1 = require("./ui/display");
 const config_1 = require("./config");
+const manager_1 = require("./skills/manager");
+const loader_1 = require("./skills/loader");
 class Chat {
     constructor(config) {
         this.running = false;
@@ -162,6 +164,17 @@ class Chat {
                 this.config = (0, config_1.setConfigValue)(this.config, 'projectDir', newDir);
                 break;
             }
+            case '/skills':
+                this.showSkills();
+                break;
+            case '/skill': {
+                if (parts.length < 2) {
+                    (0, display_1.showWarning)('用法: /skill install <网址或路径> | /skill remove <名称>');
+                    return;
+                }
+                await this.handleSkillCommand(parts.slice(1));
+                break;
+            }
             case '/exit':
             case '/quit':
             case '/q':
@@ -194,6 +207,12 @@ class Chat {
         console.log(chalk_1.default.bold('  📁 其他'));
         console.log('  /cd [path]         - 查看/切换项目目录');
         console.log('  /exit              - 退出 DeepSeek Code');
+        console.log();
+        console.log(chalk_1.default.bold('  🔌 Skills (扩展工具)'));
+        console.log('  /skills            - 查看已安装的 Skills');
+        console.log('  /skill install <网址>  - 从网址安装 Skill');
+        console.log('  /skill install <路径>  - 从本地文件夹安装 Skill');
+        console.log('  /skill remove <名称>   - 删除已安装的 Skill');
         console.log();
         (0, display_1.showInfo)('直接输入自然语言即可与 AI 对话，AI 可调用工具读写文件和执行命令');
         console.log();
@@ -341,6 +360,84 @@ class Chat {
     stop() {
         this.running = false;
         this.rl.close();
+    }
+    showSkills() {
+        const skills = (0, manager_1.listInstalledSkills)();
+        if (skills.length === 0) {
+            (0, display_1.showInfo)('暂未安装任何 Skill');
+            (0, display_1.showInfo)('使用 /skill install <网址> 安装，或告诉 AI 帮你安装');
+            return;
+        }
+        console.log();
+        (0, display_1.showInfo)(`已安装的 Skills (${skills.length} 个):`);
+        console.log();
+        for (const skill of skills) {
+            console.log(`  🔌 ${chalk_1.default.bold(skill.name)} v${skill.version}`);
+            console.log(`     ${chalk_1.default.dim(skill.description)}`);
+            console.log(`     工具数: ${skill.toolCount}${skill.author ? ' | 作者: ' + skill.author : ''}`);
+            console.log();
+        }
+        (0, display_1.showInfo)('使用 /skill remove <名称> 删除，AI 可自动使用已安装的 Skill 工具');
+        console.log();
+    }
+    async handleSkillCommand(parts) {
+        const subCmd = parts[0].toLowerCase();
+        switch (subCmd) {
+            case 'install': {
+                if (parts.length < 2) {
+                    (0, display_1.showWarning)('用法: /skill install <网址或本地路径>');
+                    (0, display_1.showInfo)('示例:');
+                    (0, display_1.showInfo)('  /skill install https://github.com/user/my-skill');
+                    (0, display_1.showInfo)('  /skill install /home/user/my-skill-folder');
+                    return;
+                }
+                const source = parts.slice(1).join(' ');
+                (0, display_1.showInfo)(`正在安装 Skill: ${source}`);
+                let result;
+                if (source.startsWith('http://') || source.startsWith('https://') || source.endsWith('.git')) {
+                    result = await (0, manager_1.installFromUrl)(source);
+                }
+                else {
+                    result = (0, manager_1.installFromFolder)(source);
+                }
+                if (result.success) {
+                    (0, display_1.showSuccess)(result.message);
+                    (0, loader_1.clearLoadedSkills)();
+                }
+                else {
+                    (0, display_1.showError)(result.message);
+                }
+                break;
+            }
+            case 'remove':
+            case 'delete':
+            case 'uninstall': {
+                if (parts.length < 2) {
+                    (0, display_1.showWarning)('用法: /skill remove <skill名称>');
+                    const skills = (0, manager_1.listInstalledSkills)();
+                    if (skills.length > 0) {
+                        (0, display_1.showInfo)('已安装: ' + skills.map((s) => s.name).join(', '));
+                    }
+                    return;
+                }
+                const skillName = parts.slice(1).join(' ');
+                const confirmed = await (0, display_1.askConfirmation)(`确认删除 Skill "${skillName}"?`);
+                if (confirmed) {
+                    const result = (0, manager_1.removeSkill)(skillName);
+                    if (result.success) {
+                        (0, display_1.showSuccess)(result.message);
+                        (0, loader_1.clearLoadedSkills)();
+                    }
+                    else {
+                        (0, display_1.showError)(result.message);
+                    }
+                }
+                break;
+            }
+            default:
+                (0, display_1.showWarning)(`未知子命令: ${subCmd}`);
+                (0, display_1.showInfo)('可用: /skill install <网址或路径> | /skill remove <名称>');
+        }
     }
 }
 exports.Chat = Chat;

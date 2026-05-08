@@ -43,6 +43,7 @@ const child_process = __importStar(require("child_process"));
 const safety_1 = require("./safety");
 const display_1 = require("../ui/display");
 const env_1 = require("../env");
+const loader_1 = require("../skills/loader");
 exports.TOOL_DEFINITIONS = [
     {
         type: 'function',
@@ -511,8 +512,16 @@ async function executeTool(name, argsStr) {
         case 'copy_to_clipboard':
             result = await executeCopyToClipboard(args);
             break;
-        default:
-            result = `错误: 未知工具 - ${name}`;
+        default: {
+            if ((0, loader_1.isSkillTool)(name)) {
+                const skillResult = await (0, loader_1.executeSkillTool)(name, args);
+                result = skillResult || `错误: Skill 工具执行失败 - ${name}`;
+            }
+            else {
+                result = `错误: 未知工具 - ${name}`;
+            }
+            break;
+        }
     }
     const isError = result.startsWith('错误:');
     (0, display_1.showToolResult)(name, result, isError);

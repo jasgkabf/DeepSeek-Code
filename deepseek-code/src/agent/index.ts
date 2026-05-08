@@ -3,6 +3,8 @@ import { chatCompletionStream, ChatCompletionResult, StreamCallbacks } from '../
 import { TOOL_DEFINITIONS, buildToolResults, setToolConfig } from './tools';
 import { showAssistantPrefix, showDivider, showError } from '../ui/display';
 import { detectEnvironment } from '../env';
+import { getSkillToolDefinitions, loadAllSkills } from '../skills/loader';
+import { listInstalledSkills } from '../skills/manager';
 
 const MAX_AGENT_ITERATIONS = 10;
 
@@ -17,11 +19,18 @@ function buildSystemPrompt(): ChatMessage {
 - 屏幕较窄，输出代码时注意控制行宽`;
   }
 
+  const skills = listInstalledSkills();
+  let skillNote = '';
+  if (skills.length > 0) {
+    const skillList = skills.map((s) => `${s.name} (${s.toolCount} 个工具: ${s.description})`).join('\n- ');
+    skillNote = `\n\n已安装的 Skills (扩展工具):\n- ${skillList}`;
+  }
+
   return {
     role: 'system',
     content: `你是 DeepSeek Code，一个强大的命令行 AI 编程助手。你可以帮助用户编写代码、调试问题、管理项目文件和执行命令。
 
-你具备以下工具能力：
+你具备以下内置工具能力：
 - read_file: 读取项目文件内容
 - list_directory: 遍历目录、查看文件列表（支持 depth 参数控制递归深度）
 - write_file: 创建新文件或覆盖写入文件
@@ -38,8 +47,14 @@ function buildSystemPrompt(): ChatMessage {
 5. 遇到错误时分析原因并提供解决方案
 6. 生成的代码可使用 copy_to_clipboard 工具方便用户复制
 
-请用中文回复用户，代码注释使用英文。${envNote}`,
+请用中文回复用户，代码注释使用英文。${envNote}${skillNote}`,
   };
+}
+
+function getAllToolDefinitions(): ToolDefinition[] {
+  const builtIn = TOOL_DEFINITIONS;
+  const skillTools = getSkillToolDefinitions();
+  return [...builtIn, ...skillTools];
 }
 
 export interface AgentRunOptions {
@@ -51,10 +66,12 @@ export interface AgentRunOptions {
 export async function runAgent(options: AgentRunOptions): Promise<ChatMessage[]> {
   const { config, messages, onContent } = options;
   setToolConfig(config);
+  loadAllSkills();
 
   const systemPrompt = buildSystemPrompt();
   const allMessages: ChatMessage[] = [systemPrompt, ...messages];
   const newMessages: ChatMessage[] = [];
+  const allTools = getAllToolDefinitions();
   let iteration = 0;
 
   while (iteration < MAX_AGENT_ITERATIONS) {
@@ -75,7 +92,7 @@ export async function runAgent(options: AgentRunOptions): Promise<ChatMessage[]>
 
     let result: ChatCompletionResult;
     try {
-      result = await chatCompletionStream(allMessages, TOOL_DEFINITIONS, config, callbacks);
+      result = await chatCompletionStream(allMessages, allTools, config, callbacks);
     } catch (err: any) {
       showError(`请求失败: ${err.message}`);
       break;
