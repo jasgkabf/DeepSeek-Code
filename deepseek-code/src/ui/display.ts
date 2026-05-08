@@ -1,8 +1,18 @@
 import chalk from 'chalk';
 import * as readline from 'readline';
+import { detectEnvironment } from '../env';
 
 const BRAND = chalk.cyan.bold('DeepSeek Code');
 const BRAND_SHORT = chalk.cyan.bold('DS');
+
+function getTerminalWidth(): number {
+  return process.stdout.columns || 80;
+}
+
+function getSeparatorLength(): number {
+  const width = getTerminalWidth();
+  return Math.min(width, 60);
+}
 
 export function brand(): string {
   return BRAND;
@@ -12,22 +22,42 @@ export function brandShort(): string {
   return BRAND_SHORT;
 }
 
-export function separator(char = '─', length = 60): string {
-  return chalk.dim(char.repeat(length));
+export function separator(char = '─', length?: number): string {
+  const len = length || getSeparatorLength();
+  return chalk.dim(char.repeat(len));
+}
+
+function buildBannerLines(): string[] {
+  const width = getTerminalWidth();
+  if (width < 55) {
+    return [
+      chalk.cyan.bold('  DeepSeek Code'),
+      chalk.white.bold('  AI 编程助手 v1.0.0'),
+    ];
+  }
+  return [
+    chalk.cyan('  ╔═══════════════════════════════════════════════╗'),
+    chalk.cyan('  ║') + chalk.cyan.bold('   ____             _   _          ___           ') + chalk.cyan('║'),
+    chalk.cyan('  ║') + chalk.cyan.bold('  |  _ \\  ___  ___| |_| | ___   _|_ _|_ _       ') + chalk.cyan('║'),
+    chalk.cyan('  ║') + chalk.cyan.bold('  | | | |/ _ \\/ __| __| |/ / | | || |/ _` |      ') + chalk.cyan('║'),
+    chalk.cyan('  ║') + chalk.cyan.bold('  | |_| |  __/\\__ \\ |_|   <| |_| || | (_| |      ') + chalk.cyan('║'),
+    chalk.cyan('  ║') + chalk.cyan.bold('  |____/ \\___||___/\\__|_|\\_\\\\__,_|___\\__,_|      ') + chalk.cyan('║'),
+    chalk.cyan('  ║') + chalk.white.bold('         Code - AI 编程助手 v1.0.0              ') + chalk.cyan('║'),
+    chalk.cyan('  ╚═══════════════════════════════════════════════╝'),
+  ];
 }
 
 export function showBanner(): void {
+  const env = detectEnvironment();
   console.log();
-  console.log(chalk.cyan('  ╔═══════════════════════════════════════════════╗'));
-  console.log(chalk.cyan('  ║') + chalk.cyan.bold('   ____             _   _          ___           ') + chalk.cyan('║'));
-  console.log(chalk.cyan('  ║') + chalk.cyan.bold('  |  _ \\  ___  ___| |_| | ___   _|_ _|_ _       ') + chalk.cyan('║'));
-  console.log(chalk.cyan('  ║') + chalk.cyan.bold('  | | | |/ _ \\/ __| __| |/ / | | || |/ _` |      ') + chalk.cyan('║'));
-  console.log(chalk.cyan('  ║') + chalk.cyan.bold('  | |_| |  __/\\__ \\ |_|   <| |_| || | (_| |      ') + chalk.cyan('║'));
-  console.log(chalk.cyan('  ║') + chalk.cyan.bold('  |____/ \\___||___/\\__|_|\\_\\\\__,_|___\\__,_|      ') + chalk.cyan('║'));
-  console.log(chalk.cyan('  ║') + chalk.white.bold('         Code - AI 编程助手 v1.0.0              ') + chalk.cyan('║'));
-  console.log(chalk.cyan('  ╚═══════════════════════════════════════════════╝'));
+  for (const line of buildBannerLines()) {
+    console.log(line);
+  }
   console.log();
   console.log(chalk.dim('  对标 Claude Code / Codex 的命令行 AI 编程助手'));
+  if (env.isTermux) {
+    console.log(chalk.dim('  运行环境: Termux (Android)'));
+  }
   console.log(chalk.dim('  输入 /help 查看帮助，/exit 退出'));
   console.log();
   console.log(separator());
@@ -50,7 +80,9 @@ export function showToolCall(name: string, args: string): void {
 export function showToolResult(name: string, result: string, isError = false): void {
   const icon = isError ? '✗' : '✓';
   const color = isError ? chalk.red : chalk.green;
-  console.log(color(`  ${icon} ${name}: `) + chalk.dim(result.substring(0, 200) + (result.length > 200 ? '...' : '')));
+  const maxWidth = getTerminalWidth() - 10;
+  const truncated = result.length > Math.max(maxWidth, 100) ? result.substring(0, Math.max(maxWidth, 100)) + '...' : result.substring(0, 200) + (result.length > 200 ? '...' : '');
+  console.log(color(`  ${icon} ${name}: `) + chalk.dim(truncated));
 }
 
 export function showThinking(): void {

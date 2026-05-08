@@ -42,6 +42,7 @@ const path = __importStar(require("path"));
 const child_process = __importStar(require("child_process"));
 const safety_1 = require("./safety");
 const display_1 = require("../ui/display");
+const env_1 = require("../env");
 exports.TOOL_DEFINITIONS = [
     {
         type: 'function',
@@ -177,9 +178,39 @@ exports.TOOL_DEFINITIONS = [
             },
         },
     },
+    {
+        type: 'function',
+        function: {
+            name: 'copy_to_clipboard',
+            description: '将文本内容复制到系统剪贴板。在 Termux 环境中使用 termux-clipboard-set，在桌面 Linux 中使用 xclip 或 xsel。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    text: {
+                        type: 'string',
+                        description: '要复制到剪贴板的文本内容',
+                    },
+                },
+                required: ['text'],
+            },
+        },
+    },
 ];
+function checkStorageAccess(filePath) {
+    if (!(0, env_1.isExternalStoragePath)(filePath))
+        return null;
+    const env = (0, env_1.detectEnvironment)();
+    if (env.isTermux && !env.hasStorageAccess) {
+        return (0, env_1.getTermuxStorageHint)();
+    }
+    return null;
+}
 async function executeReadFile(args) {
     const filePath = path.resolve(args.path);
+    const storageHint = checkStorageAccess(filePath);
+    if (storageHint && !fs.existsSync(filePath)) {
+        return `错误: 文件不存在 - ${filePath}\n提示: ${storageHint}`;
+    }
     if (!fs.existsSync(filePath)) {
         return `错误: 文件不存在 - ${filePath}`;
     }
@@ -192,11 +223,18 @@ async function executeReadFile(args) {
         return `文件: ${filePath} (${stats.size} 字节)\n${'─'.repeat(50)}\n${content}`;
     }
     catch (err) {
+        if (err.code === 'EACCES' && (0, env_1.isExternalStoragePath)(filePath)) {
+            return `错误: 无权限读取文件 - ${filePath}\n提示: ${(0, env_1.getTermuxStorageHint)()}`;
+        }
         return `错误: 无法读取文件 - ${err.message}`;
     }
 }
 async function executeListDirectory(args) {
     const dirPath = path.resolve(args.path);
+    const storageHint = checkStorageAccess(dirPath);
+    if (storageHint && !fs.existsSync(dirPath)) {
+        return `错误: 目录不存在 - ${dirPath}\n提示: ${storageHint}`;
+    }
     if (!fs.existsSync(dirPath)) {
         return `错误: 目录不存在 - ${dirPath}`;
     }
@@ -215,6 +253,9 @@ async function executeListDirectory(args) {
         return `目录: ${dirPath} (深度: ${maxDepth})\n${'─'.repeat(50)}\n${items}`;
     }
     catch (err) {
+        if (err.code === 'EACCES' && (0, env_1.isExternalStoragePath)(dirPath)) {
+            return `错误: 无权限访问目录 - ${dirPath}\n提示: ${(0, env_1.getTermuxStorageHint)()}`;
+        }
         return `错误: 无法列出目录 - ${err.message}`;
     }
 }
@@ -264,6 +305,9 @@ async function executeWriteFile(args) {
         return `成功: 文件已写入 - ${filePath} (${args.content.length} 字符)`;
     }
     catch (err) {
+        if (err.code === 'EACCES' && (0, env_1.isExternalStoragePath)(filePath)) {
+            return `错误: 无权限写入文件 - ${filePath}\n提示: ${(0, env_1.getTermuxStorageHint)()}`;
+        }
         return `错误: 无法写入文件 - ${err.message}`;
     }
 }
@@ -281,6 +325,9 @@ async function executeAppendFile(args) {
         return `成功: 内容已追加 - ${filePath} (${args.content.length} 字符)`;
     }
     catch (err) {
+        if (err.code === 'EACCES' && (0, env_1.isExternalStoragePath)(filePath)) {
+            return `错误: 无权限写入文件 - ${filePath}\n提示: ${(0, env_1.getTermuxStorageHint)()}`;
+        }
         return `错误: 无法追加到文件 - ${err.message}`;
     }
 }
@@ -313,6 +360,9 @@ async function executeEditFile(args) {
         return `成功: 文件已编辑 - ${filePath} (替换了 1 处)`;
     }
     catch (err) {
+        if (err.code === 'EACCES' && (0, env_1.isExternalStoragePath)(filePath)) {
+            return `错误: 无权限编辑文件 - ${filePath}\n提示: ${(0, env_1.getTermuxStorageHint)()}`;
+        }
         return `错误: 无法编辑文件 - ${err.message}`;
     }
 }
@@ -323,6 +373,11 @@ function setToolConfig(config) {
 async function executeRunCommand(args) {
     const commandStr = args.command;
     const safeMode = _config?.safeMode ?? true;
+    const env = (0, env_1.detectEnvironment)();
+    if (env.isTermux && /\bapt(-get)?\s+install\b/.test(commandStr)) {
+        const pkgCommand = commandStr.replace(/\bapt(-get)?\s+install\b/, 'pkg install');
+        (0, display_1.showWarning)(`检测到 Termux 环境，建议使用: ${pkgCommand}`);
+    }
     if ((0, safety_1.isDangerousCommand)(commandStr, safeMode)) {
         const reason = (0, safety_1.getDangerReason)(commandStr);
         return `错误: 命令被安全机制拦截 - ${reason || '该命令被识别为潜在危险操作'}`;
@@ -363,6 +418,67 @@ async function executeRunCommand(args) {
         });
     });
 }
+async function executeCopyToClipboard(args) {
+    const env = (0, env_1.detectEnvironment)();
+    if (env.isTermux) {
+        return new Promise((resolve) => {
+            const proc = child_process.spawn('termux-clipboard-set', [], { stdio: ['pipe', 'pipe', 'pipe'] });
+            proc.stdin.write(args.text);
+            proc.stdin.end();
+            let stderr = '';
+            proc.stderr.on('data', (data) => { stderr += data.toString(); });
+            proc.on('close', (code) => {
+                if (code === 0) {
+                    resolve(`成功: 已复制 ${args.text.length} 字符到剪贴板 (Termux)`);
+                }
+                else if (stderr.includes('not found') || stderr.includes('No such file')) {
+                    resolve(`错误: termux-clipboard-set 未安装。请运行: pkg install termux-api`);
+                }
+                else {
+                    resolve(`错误: 复制到剪贴板失败 - ${stderr}`);
+                }
+            });
+            proc.on('error', (err) => {
+                if (err.message.includes('ENOENT')) {
+                    resolve(`错误: termux-clipboard-set 未安装。请运行: pkg install termux-api`);
+                }
+                else {
+                    resolve(`错误: 复制到剪贴板失败 - ${err.message}`);
+                }
+            });
+        });
+    }
+    return new Promise((resolve) => {
+        const commands = [
+            ['xclip', ['-selection', 'clipboard']],
+            ['xsel', ['--clipboard', '--input']],
+            ['wl-copy', []],
+        ];
+        for (const [cmd, cmdArgs] of commands) {
+            try {
+                const proc = child_process.spawn(cmd, cmdArgs, { stdio: ['pipe', 'pipe', 'pipe'] });
+                proc.stdin.write(args.text);
+                proc.stdin.end();
+                proc.on('close', (code) => {
+                    if (code === 0) {
+                        resolve(`成功: 已复制 ${args.text.length} 字符到剪贴板 (${cmd})`);
+                    }
+                    else {
+                        resolve(`错误: 使用 ${cmd} 复制失败 (exit code ${code})`);
+                    }
+                });
+                proc.on('error', () => {
+                    resolve(`错误: 未找到剪贴板工具。请安装 xclip、xsel 或 wl-copy`);
+                });
+                return;
+            }
+            catch {
+                continue;
+            }
+        }
+        resolve(`错误: 未找到可用的剪贴板工具。请安装 xclip、xsel 或 wl-copy`);
+    });
+}
 async function executeTool(name, argsStr) {
     let args;
     try {
@@ -391,6 +507,9 @@ async function executeTool(name, argsStr) {
             break;
         case 'run_command':
             result = await executeRunCommand(args);
+            break;
+        case 'copy_to_clipboard':
+            result = await executeCopyToClipboard(args);
             break;
         default:
             result = `错误: 未知工具 - ${name}`;

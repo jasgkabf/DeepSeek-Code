@@ -1,9 +1,21 @@
 import { DeepSeekCodeConfig } from './types';
 import { loadConfig, saveConfig, isConfigured, setupWizard } from './config';
-import { showBanner, showInfo, showError, showSuccess } from './ui/display';
+import { showBanner, showInfo, showError, showSuccess, showWarning } from './ui/display';
 import { Chat } from './chat';
+import { detectEnvironment } from './env';
 
 export async function main(): Promise<void> {
+  const env = detectEnvironment();
+
+  if (env.isTermux) {
+    showInfo('检测到 Termux 环境');
+    if (!env.hasStorageAccess) {
+      showWarning('未获取存储访问权限，访问 /sdcard 等路径可能失败');
+      showInfo('请运行: termux-setup-storage（需先安装: pkg install termux-api）');
+      console.log();
+    }
+  }
+
   showBanner();
 
   let config = loadConfig();
@@ -16,7 +28,8 @@ export async function main(): Promise<void> {
       process.exit(1);
     }
   } else {
-    showInfo(`已加载配置 - 供应商: ${config.provider}, 模型: ${config.model}`);
+    const envLabel = env.isTermux ? 'Termux' : '标准';
+    showInfo(`已加载配置 - 供应商: ${config.provider}, 模型: ${config.model} [${envLabel}]`);
   }
 
   if (!config.apiKey) {

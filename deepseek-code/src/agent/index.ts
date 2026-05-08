@@ -2,12 +2,24 @@ import { ChatMessage, DeepSeekCodeConfig, ToolDefinition, ToolResult } from '../
 import { chatCompletionStream, ChatCompletionResult, StreamCallbacks } from '../api/client';
 import { TOOL_DEFINITIONS, buildToolResults, setToolConfig } from './tools';
 import { showAssistantPrefix, showDivider, showError } from '../ui/display';
+import { detectEnvironment } from '../env';
 
 const MAX_AGENT_ITERATIONS = 10;
 
-const SYSTEM_PROMPT: ChatMessage = {
-  role: 'system',
-  content: `你是 DeepSeek Code，一个强大的命令行 AI 编程助手。你可以帮助用户编写代码、调试问题、管理项目文件和执行命令。
+function buildSystemPrompt(): ChatMessage {
+  const env = detectEnvironment();
+  let envNote = '';
+  if (env.isTermux) {
+    envNote = `\n\n当前运行在 Termux (Android) 环境下，请注意：
+- 安装软件包请使用 pkg install 而非 apt install
+- 访问手机存储 (/sdcard) 需要先运行 termux-setup-storage
+- 可以使用 copy_to_clipboard 工具将代码复制到手机剪贴板
+- 屏幕较窄，输出代码时注意控制行宽`;
+  }
+
+  return {
+    role: 'system',
+    content: `你是 DeepSeek Code，一个强大的命令行 AI 编程助手。你可以帮助用户编写代码、调试问题、管理项目文件和执行命令。
 
 你具备以下工具能力：
 - read_file: 读取项目文件内容
@@ -16,6 +28,7 @@ const SYSTEM_PROMPT: ChatMessage = {
 - append_file: 向文件末尾追加内容
 - edit_file: 局部修改代码（查找替换，支持 replace_all 参数替换所有匹配）
 - run_command: 执行 Shell 命令（npm、git、运行脚本等）
+- copy_to_clipboard: 将文本复制到系统剪贴板
 
 工作原则：
 1. 先理解用户需求，再选择合适的工具
@@ -23,9 +36,11 @@ const SYSTEM_PROMPT: ChatMessage = {
 3. 执行命令前确认安全性
 4. 给出清晰的解释和操作步骤
 5. 遇到错误时分析原因并提供解决方案
+6. 生成的代码可使用 copy_to_clipboard 工具方便用户复制
 
-请用中文回复用户，代码注释使用英文。`,
-};
+请用中文回复用户，代码注释使用英文。${envNote}`,
+  };
+}
 
 export interface AgentRunOptions {
   config: DeepSeekCodeConfig;
@@ -37,7 +52,8 @@ export async function runAgent(options: AgentRunOptions): Promise<ChatMessage[]>
   const { config, messages, onContent } = options;
   setToolConfig(config);
 
-  const allMessages: ChatMessage[] = [SYSTEM_PROMPT, ...messages];
+  const systemPrompt = buildSystemPrompt();
+  const allMessages: ChatMessage[] = [systemPrompt, ...messages];
   const newMessages: ChatMessage[] = [];
   let iteration = 0;
 

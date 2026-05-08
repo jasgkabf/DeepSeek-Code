@@ -58,29 +58,56 @@ exports.askConfirmation = askConfirmation;
 exports.askInput = askInput;
 const chalk_1 = __importDefault(require("chalk"));
 const readline = __importStar(require("readline"));
+const env_1 = require("../env");
 const BRAND = chalk_1.default.cyan.bold('DeepSeek Code');
 const BRAND_SHORT = chalk_1.default.cyan.bold('DS');
+function getTerminalWidth() {
+    return process.stdout.columns || 80;
+}
+function getSeparatorLength() {
+    const width = getTerminalWidth();
+    return Math.min(width, 60);
+}
 function brand() {
     return BRAND;
 }
 function brandShort() {
     return BRAND_SHORT;
 }
-function separator(char = '─', length = 60) {
-    return chalk_1.default.dim(char.repeat(length));
+function separator(char = '─', length) {
+    const len = length || getSeparatorLength();
+    return chalk_1.default.dim(char.repeat(len));
+}
+function buildBannerLines() {
+    const width = getTerminalWidth();
+    if (width < 55) {
+        return [
+            chalk_1.default.cyan.bold('  DeepSeek Code'),
+            chalk_1.default.white.bold('  AI 编程助手 v1.0.0'),
+        ];
+    }
+    return [
+        chalk_1.default.cyan('  ╔═══════════════════════════════════════════════╗'),
+        chalk_1.default.cyan('  ║') + chalk_1.default.cyan.bold('   ____             _   _          ___           ') + chalk_1.default.cyan('║'),
+        chalk_1.default.cyan('  ║') + chalk_1.default.cyan.bold('  |  _ \\  ___  ___| |_| | ___   _|_ _|_ _       ') + chalk_1.default.cyan('║'),
+        chalk_1.default.cyan('  ║') + chalk_1.default.cyan.bold('  | | | |/ _ \\/ __| __| |/ / | | || |/ _` |      ') + chalk_1.default.cyan('║'),
+        chalk_1.default.cyan('  ║') + chalk_1.default.cyan.bold('  | |_| |  __/\\__ \\ |_|   <| |_| || | (_| |      ') + chalk_1.default.cyan('║'),
+        chalk_1.default.cyan('  ║') + chalk_1.default.cyan.bold('  |____/ \\___||___/\\__|_|\\_\\\\__,_|___\\__,_|      ') + chalk_1.default.cyan('║'),
+        chalk_1.default.cyan('  ║') + chalk_1.default.white.bold('         Code - AI 编程助手 v1.0.0              ') + chalk_1.default.cyan('║'),
+        chalk_1.default.cyan('  ╚═══════════════════════════════════════════════╝'),
+    ];
 }
 function showBanner() {
+    const env = (0, env_1.detectEnvironment)();
     console.log();
-    console.log(chalk_1.default.cyan('  ╔═══════════════════════════════════════════════╗'));
-    console.log(chalk_1.default.cyan('  ║') + chalk_1.default.cyan.bold('   ____             _   _          ___           ') + chalk_1.default.cyan('║'));
-    console.log(chalk_1.default.cyan('  ║') + chalk_1.default.cyan.bold('  |  _ \\  ___  ___| |_| | ___   _|_ _|_ _       ') + chalk_1.default.cyan('║'));
-    console.log(chalk_1.default.cyan('  ║') + chalk_1.default.cyan.bold('  | | | |/ _ \\/ __| __| |/ / | | || |/ _` |      ') + chalk_1.default.cyan('║'));
-    console.log(chalk_1.default.cyan('  ║') + chalk_1.default.cyan.bold('  | |_| |  __/\\__ \\ |_|   <| |_| || | (_| |      ') + chalk_1.default.cyan('║'));
-    console.log(chalk_1.default.cyan('  ║') + chalk_1.default.cyan.bold('  |____/ \\___||___/\\__|_|\\_\\\\__,_|___\\__,_|      ') + chalk_1.default.cyan('║'));
-    console.log(chalk_1.default.cyan('  ║') + chalk_1.default.white.bold('         Code - AI 编程助手 v1.0.0              ') + chalk_1.default.cyan('║'));
-    console.log(chalk_1.default.cyan('  ╚═══════════════════════════════════════════════╝'));
+    for (const line of buildBannerLines()) {
+        console.log(line);
+    }
     console.log();
     console.log(chalk_1.default.dim('  对标 Claude Code / Codex 的命令行 AI 编程助手'));
+    if (env.isTermux) {
+        console.log(chalk_1.default.dim('  运行环境: Termux (Android)'));
+    }
     console.log(chalk_1.default.dim('  输入 /help 查看帮助，/exit 退出'));
     console.log();
     console.log(separator());
@@ -99,7 +126,9 @@ function showToolCall(name, args) {
 function showToolResult(name, result, isError = false) {
     const icon = isError ? '✗' : '✓';
     const color = isError ? chalk_1.default.red : chalk_1.default.green;
-    console.log(color(`  ${icon} ${name}: `) + chalk_1.default.dim(result.substring(0, 200) + (result.length > 200 ? '...' : '')));
+    const maxWidth = getTerminalWidth() - 10;
+    const truncated = result.length > Math.max(maxWidth, 100) ? result.substring(0, Math.max(maxWidth, 100)) + '...' : result.substring(0, 200) + (result.length > 200 ? '...' : '');
+    console.log(color(`  ${icon} ${name}: `) + chalk_1.default.dim(truncated));
 }
 function showThinking() {
     process.stdout.write(chalk_1.default.cyan(' ● ') + chalk_1.default.dim('思考中...'));
