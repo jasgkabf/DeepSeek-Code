@@ -1,0 +1,87 @@
+import * as path from 'path';
+
+const DANGEROUS_PATTERNS: RegExp[] = [
+  /\brm\s+(-[a-zA-Z]*f[a-zA-Z]*\s+|.*--no-preserve-root.*)\//,
+  /\brm\s+-rf\s+\//,
+  /\bmkfs\b/,
+  /\bdd\s+if=/,
+  /\bformat\s+[A-Z]:/i,
+  /\bshutdown\b/,
+  /\breboot\b/,
+  /\binit\s+[06]/,
+  />\s*\/dev\/sd/,
+  /\bchmod\s+-R\s+[0-7]*777\s+\//,
+  /\bchown\s+-R\s+.*\s+\//,
+  /\biptables\b/,
+  /\bkill\s+-9\s+1\b/,
+  /\bsystemctl\s+(stop|disable)\s+(ssh|sshd|network|firewall)/,
+];
+
+const PROTECTED_PATHS: string[] = [
+  '/etc/passwd',
+  '/etc/shadow',
+  '/etc/sudoers',
+  '/boot',
+  '/sys',
+  '/proc',
+  '/dev',
+  '/usr/bin',
+  '/usr/sbin',
+  '/bin',
+  '/sbin',
+  '/root',
+  'C:\\Windows',
+  'C:\\Program Files',
+];
+
+export function isDangerousCommand(command: string): boolean {
+  return DANGEROUS_PATTERNS.some((p) => p.test(command));
+}
+
+export function isProtectedPath(filePath: string): boolean {
+  const resolved = path.resolve(filePath);
+  return PROTECTED_PATHS.some((p) => resolved.startsWith(p));
+}
+
+export function isWriteToProtectedPath(filePath: string): boolean {
+  return isProtectedPath(filePath);
+}
+
+export function getDangerReason(command: string): string | null {
+  if (/\brm\s+(-[a-zA-Z]*f[a-zA-Z]*\s+|.*--no-preserve-root.*)\//.test(command)) {
+    return '该命令可能递归删除系统文件';
+  }
+  if (/\bmkfs\b/.test(command)) {
+    return '该命令将格式化磁盘';
+  }
+  if (/\bdd\s+if=/.test(command)) {
+    return '该命令可能直接写入磁盘设备';
+  }
+  if (/\bshutdown\b/.test(command) || /\breboot\b/.test(command)) {
+    return '该命令将关闭或重启系统';
+  }
+  if (/\biptables\b/.test(command)) {
+    return '该命令将修改防火墙规则';
+  }
+  if (isDangerousCommand(command)) {
+    return '该命令被识别为潜在危险操作';
+  }
+  return null;
+}
+
+export function shouldConfirm(command: string): boolean {
+  const lowerCmd = command.toLowerCase().trim();
+  const confirmPatterns: RegExp[] = [
+    /\brm\s+/,
+    /\bgit\s+push/,
+    /\bgit\s+reset\s+--hard/,
+    /\bnpm\s+publish/,
+    /\bdocker\s+(rm|rmi)/,
+    /\bkubectl\s+delete/,
+    /\bdrop\s+table\b/i,
+    /\btruncate\s+/i,
+    /\bchmod\s+/,
+    /\bchown\s+/,
+  ];
+  return confirmPatterns.some((p) => p.test(lowerCmd));
+}

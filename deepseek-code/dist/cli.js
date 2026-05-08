@@ -1,0 +1,41 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.main = main;
+const config_1 = require("./config");
+const display_1 = require("./ui/display");
+const chat_1 = require("./chat");
+async function main() {
+    (0, display_1.showBanner)();
+    let config = (0, config_1.loadConfig)();
+    if (!(0, config_1.isConfigured)(config)) {
+        try {
+            config = await (0, config_1.setupWizard)();
+        }
+        catch (err) {
+            (0, display_1.showError)(`配置向导失败: ${err.message}`);
+            process.exit(1);
+        }
+    }
+    else {
+        (0, display_1.showInfo)(`已加载配置 - 模型: ${config.model}`);
+    }
+    if (!config.apiKey) {
+        (0, display_1.showError)('API Key 未设置，无法启动');
+        process.exit(1);
+    }
+    (0, display_1.showSuccess)('DeepSeek Code 已就绪');
+    console.log();
+    const chat = new chat_1.Chat(config);
+    process.on('SIGINT', () => {
+        console.log();
+        (0, display_1.showInfo)('DeepSeek Code 会话已保存，再见！');
+        process.exit(0);
+    });
+    process.on('SIGTERM', () => {
+        console.log();
+        (0, display_1.showInfo)('DeepSeek Code 会话已保存，再见！');
+        process.exit(0);
+    });
+    await chat.start();
+}
+//# sourceMappingURL=cli.js.map
