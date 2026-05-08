@@ -101,6 +101,9 @@ async function setupWizard() {
         model,
         maxTokens: types_1.DEFAULT_CONFIG.maxTokens,
         temperature: types_1.DEFAULT_CONFIG.temperature,
+        topP: types_1.DEFAULT_CONFIG.topP,
+        frequencyPenalty: types_1.DEFAULT_CONFIG.frequencyPenalty,
+        presencePenalty: types_1.DEFAULT_CONFIG.presencePenalty,
         safeMode: types_1.DEFAULT_CONFIG.safeMode,
         provider,
         projectDir: process.cwd(),
@@ -113,15 +116,18 @@ async function setupWizard() {
 }
 function showConfig(config) {
     (0, display_1.showInfo)('当前配置:');
-    console.log('  Provider: ' + config.provider);
-    console.log('  API Base:  ' + config.apiBase);
-    console.log('  Model:     ' + config.model);
-    console.log('  MaxTokens: ' + config.maxTokens);
-    console.log('  Temperature: ' + config.temperature);
-    console.log('  SafeMode:  ' + config.safeMode);
-    console.log('  ProjectDir: ' + (config.projectDir || process.cwd()));
-    console.log('  MaxContextTokens: ' + config.maxContextTokens);
-    console.log('  API Key:   ' + (config.apiKey ? config.apiKey.substring(0, 8) + '...' : '(未设置)'));
+    console.log('  Provider:          ' + config.provider);
+    console.log('  API Base:          ' + config.apiBase);
+    console.log('  Model:             ' + config.model);
+    console.log('  MaxTokens:         ' + config.maxTokens);
+    console.log('  Temperature:       ' + config.temperature);
+    console.log('  TopP:              ' + config.topP);
+    console.log('  FrequencyPenalty:  ' + config.frequencyPenalty);
+    console.log('  PresencePenalty:   ' + config.presencePenalty);
+    console.log('  SafeMode:          ' + config.safeMode);
+    console.log('  ProjectDir:        ' + (config.projectDir || process.cwd()));
+    console.log('  MaxContextTokens:  ' + config.maxContextTokens);
+    console.log('  API Key:           ' + (config.apiKey ? config.apiKey.substring(0, 8) + '...' : '(未设置)'));
 }
 function setConfigValue(config, key, value) {
     const validKeys = {
@@ -132,6 +138,12 @@ function setConfigValue(config, key, value) {
             c.maxTokens = n; },
         temperature: (c, v) => { const n = parseFloat(v); if (!isNaN(n))
             c.temperature = n; },
+        topP: (c, v) => { const n = parseFloat(v); if (!isNaN(n))
+            c.topP = n; },
+        frequencyPenalty: (c, v) => { const n = parseFloat(v); if (!isNaN(n))
+            c.frequencyPenalty = n; },
+        presencePenalty: (c, v) => { const n = parseFloat(v); if (!isNaN(n))
+            c.presencePenalty = n; },
         safeMode: (c, v) => { c.safeMode = v === 'true'; },
         provider: (c, v) => { if (v === 'openai' || v === 'claude')
             c.provider = v; },

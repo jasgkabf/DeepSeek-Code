@@ -68,6 +68,9 @@ export async function setupWizard(): Promise<DeepSeekCodeConfig> {
     model,
     maxTokens: DEFAULT_CONFIG.maxTokens,
     temperature: DEFAULT_CONFIG.temperature,
+    topP: DEFAULT_CONFIG.topP,
+    frequencyPenalty: DEFAULT_CONFIG.frequencyPenalty,
+    presencePenalty: DEFAULT_CONFIG.presencePenalty,
     safeMode: DEFAULT_CONFIG.safeMode,
     provider,
     projectDir: process.cwd(),
@@ -83,15 +86,18 @@ export async function setupWizard(): Promise<DeepSeekCodeConfig> {
 
 export function showConfig(config: DeepSeekCodeConfig): void {
   showInfo('当前配置:');
-  console.log('  Provider: ' + config.provider);
-  console.log('  API Base:  ' + config.apiBase);
-  console.log('  Model:     ' + config.model);
-  console.log('  MaxTokens: ' + config.maxTokens);
-  console.log('  Temperature: ' + config.temperature);
-  console.log('  SafeMode:  ' + config.safeMode);
-  console.log('  ProjectDir: ' + (config.projectDir || process.cwd()));
-  console.log('  MaxContextTokens: ' + config.maxContextTokens);
-  console.log('  API Key:   ' + (config.apiKey ? config.apiKey.substring(0, 8) + '...' : '(未设置)'));
+  console.log('  Provider:          ' + config.provider);
+  console.log('  API Base:          ' + config.apiBase);
+  console.log('  Model:             ' + config.model);
+  console.log('  MaxTokens:         ' + config.maxTokens);
+  console.log('  Temperature:       ' + config.temperature);
+  console.log('  TopP:              ' + config.topP);
+  console.log('  FrequencyPenalty:  ' + config.frequencyPenalty);
+  console.log('  PresencePenalty:   ' + config.presencePenalty);
+  console.log('  SafeMode:          ' + config.safeMode);
+  console.log('  ProjectDir:        ' + (config.projectDir || process.cwd()));
+  console.log('  MaxContextTokens:  ' + config.maxContextTokens);
+  console.log('  API Key:           ' + (config.apiKey ? config.apiKey.substring(0, 8) + '...' : '(未设置)'));
 }
 
 export function setConfigValue(config: DeepSeekCodeConfig, key: string, value: string): DeepSeekCodeConfig {
@@ -101,6 +107,9 @@ export function setConfigValue(config: DeepSeekCodeConfig, key: string, value: s
     model: (c, v) => { c.model = v; },
     maxTokens: (c, v) => { const n = parseInt(v); if (!isNaN(n)) c.maxTokens = n; },
     temperature: (c, v) => { const n = parseFloat(v); if (!isNaN(n)) c.temperature = n; },
+    topP: (c, v) => { const n = parseFloat(v); if (!isNaN(n)) c.topP = n; },
+    frequencyPenalty: (c, v) => { const n = parseFloat(v); if (!isNaN(n)) c.frequencyPenalty = n; },
+    presencePenalty: (c, v) => { const n = parseFloat(v); if (!isNaN(n)) c.presencePenalty = n; },
     safeMode: (c, v) => { c.safeMode = v === 'true'; },
     provider: (c, v) => { if (v === 'openai' || v === 'claude') c.provider = v; },
     projectDir: (c, v) => { c.projectDir = v; },

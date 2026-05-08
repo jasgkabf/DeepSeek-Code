@@ -5,6 +5,9 @@ export interface DeepSeekCodeConfig {
     model: string;
     maxTokens: number;
     temperature: number;
+    topP: number;
+    frequencyPenalty: number;
+    presencePenalty: number;
     safeMode: boolean;
     provider: LLMProvider;
     projectDir: string;

@@ -6,6 +6,9 @@ export interface DeepSeekCodeConfig {
   model: string;
   maxTokens: number;
   temperature: number;
+  topP: number;
+  frequencyPenalty: number;
+  presencePenalty: number;
   safeMode: boolean;
   provider: LLMProvider;
   projectDir: string;
@@ -124,6 +127,9 @@ export const DEFAULT_CONFIG: DeepSeekCodeConfig = {
   model: 'deepseek-chat',
   maxTokens: 4096,
   temperature: 0.7,
+  topP: 1.0,
+  frequencyPenalty: 0,
+  presencePenalty: 0,
   safeMode: true,
   provider: 'openai',
   projectDir: '',

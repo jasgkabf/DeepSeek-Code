@@ -55,11 +55,25 @@ function buildRequestBody(messages, tools, config, stream) {
     const body = {
         model: config.model,
         messages: serialized,
-        max_tokens: config.maxTokens,
         stream,
     };
+    if (config.model.startsWith('mimo')) {
+        body.max_completion_tokens = config.maxTokens;
+    }
+    else {
+        body.max_tokens = config.maxTokens;
+    }
     if (config.temperature !== undefined && config.model !== 'deepseek-reasoner') {
         body.temperature = config.temperature;
+    }
+    if (config.topP !== undefined && config.topP < 1.0) {
+        body.top_p = config.topP;
+    }
+    if (config.frequencyPenalty !== undefined && config.frequencyPenalty > 0) {
+        body.frequency_penalty = config.frequencyPenalty;
+    }
+    if (config.presencePenalty !== undefined && config.presencePenalty > 0) {
+        body.presence_penalty = config.presencePenalty;
     }
     if (tools.length > 0) {
         body.tools = tools;
