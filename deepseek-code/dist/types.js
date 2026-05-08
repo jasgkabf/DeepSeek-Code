@@ -8,5 +8,8 @@ exports.DEFAULT_CONFIG = {
     maxTokens: 4096,
     temperature: 0.7,
     safeMode: true,
+    provider: 'openai',
+    projectDir: '',
+    maxContextTokens: 32000,
 };
 //# sourceMappingURL=types.js.map

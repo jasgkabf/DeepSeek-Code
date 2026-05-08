@@ -1,3 +1,4 @@
+export type LLMProvider = 'openai' | 'claude';
 export interface DeepSeekCodeConfig {
     apiKey: string;
     apiBase: string;
@@ -5,6 +6,9 @@ export interface DeepSeekCodeConfig {
     maxTokens: number;
     temperature: number;
     safeMode: boolean;
+    provider: LLMProvider;
+    projectDir: string;
+    maxContextTokens: number;
 }
 export interface ChatMessage {
     role: 'system' | 'user' | 'assistant' | 'tool';
@@ -83,6 +87,21 @@ export interface APIResponse {
         message: ChatMessage;
         finish_reason: string;
     }>;
+    usage?: {
+        prompt_tokens: number;
+        completion_tokens: number;
+        total_tokens: number;
+    };
+}
+export interface StreamCallbacks {
+    onContent: (text: string) => void;
+    onToolCallStart: (toolCall: ToolCall) => void;
+    onToolCallDelta: (index: number, argsDelta: string) => void;
+    onDone: () => void;
+    onError: (error: Error) => void;
+}
+export interface ChatCompletionResult {
+    message: ChatMessage;
     usage?: {
         prompt_tokens: number;
         completion_tokens: number;

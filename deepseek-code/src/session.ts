@@ -43,6 +43,18 @@ export function loadSession(id: string): Session | null {
   }
 }
 
+export function deleteSession(id: string): boolean {
+  ensureSessionDir();
+  const filePath = path.join(SESSION_DIR, `${id}.json`);
+  if (!fs.existsSync(filePath)) return false;
+  try {
+    fs.unlinkSync(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function listSessions(): Array<{ id: string; createdAt: string; messageCount: number }> {
   ensureSessionDir();
   const files = fs.readdirSync(SESSION_DIR).filter((f) => f.endsWith('.json'));
@@ -83,12 +95,47 @@ export function clearSessionMessages(session: Session): Session {
   return session;
 }
 
-export function trimSessionContext(session: Session, maxMessages = 50): Session {
-  if (session.messages.length <= maxMessages) return session;
+function estimateTokens(text: string): number {
+  const cjkChars = (text.match(/[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]/g) || []).length;
+  const otherChars = text.length - cjkChars;
+  return Math.ceil(cjkChars / 1.5 + otherChars / 4);
+}
+
+function estimateMessagesTokens(messages: ChatMessage[]): number {
+  return messages.reduce((total, msg) => {
+    let msgTokens = estimateTokens(msg.content || '');
+    if (msg.tool_calls) {
+      for (const tc of msg.tool_calls) {
+        msgTokens += estimateTokens(tc.function.name + tc.function.arguments);
+      }
+    }
+    return total + msgTokens;
+  }, 0);
+}
+
+export function trimSessionContext(session: Session, maxTokens?: number): Session {
+  const limit = maxTokens || 32000;
+  const totalTokens = estimateMessagesTokens(session.messages);
+
+  if (totalTokens <= limit) return session;
+
   const systemMsgs = session.messages.filter((m) => m.role === 'system');
   const otherMsgs = session.messages.filter((m) => m.role !== 'system');
-  const trimmed = otherMsgs.slice(otherMsgs.length - maxMessages + systemMsgs.length);
-  session.messages = [...systemMsgs, ...trimmed];
+
+  const systemTokens = estimateMessagesTokens(systemMsgs);
+  const remainingBudget = limit - systemTokens;
+
+  let kept: ChatMessage[] = [];
+  let usedTokens = 0;
+
+  for (let i = otherMsgs.length - 1; i >= 0; i--) {
+    const msgTokens = estimateMessagesTokens([otherMsgs[i]]);
+    if (usedTokens + msgTokens > remainingBudget) break;
+    kept.unshift(otherMsgs[i]);
+    usedTokens += msgTokens;
+  }
+
+  session.messages = [...systemMsgs, ...kept];
   saveSession(session);
   return session;
 }

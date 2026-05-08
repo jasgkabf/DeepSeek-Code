@@ -17,10 +17,11 @@ async function main() {
         }
     }
     else {
-        (0, display_1.showInfo)(`已加载配置 - 模型: ${config.model}`);
+        (0, display_1.showInfo)(`已加载配置 - 供应商: ${config.provider}, 模型: ${config.model}`);
     }
     if (!config.apiKey) {
         (0, display_1.showError)('API Key 未设置，无法启动');
+        (0, display_1.showInfo)('请运行配置向导或使用 /set apiKey <key> 设置');
         process.exit(1);
     }
     (0, display_1.showSuccess)('DeepSeek Code 已就绪');

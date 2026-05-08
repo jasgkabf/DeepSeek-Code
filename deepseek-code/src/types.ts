@@ -1,3 +1,5 @@
+export type LLMProvider = 'openai' | 'claude';
+
 export interface DeepSeekCodeConfig {
   apiKey: string;
   apiBase: string;
@@ -5,6 +7,9 @@ export interface DeepSeekCodeConfig {
   maxTokens: number;
   temperature: number;
   safeMode: boolean;
+  provider: LLMProvider;
+  projectDir: string;
+  maxContextTokens: number;
 }
 
 export interface ChatMessage {
@@ -98,6 +103,19 @@ export interface APIResponse {
   };
 }
 
+export interface StreamCallbacks {
+  onContent: (text: string) => void;
+  onToolCallStart: (toolCall: ToolCall) => void;
+  onToolCallDelta: (index: number, argsDelta: string) => void;
+  onDone: () => void;
+  onError: (error: Error) => void;
+}
+
+export interface ChatCompletionResult {
+  message: ChatMessage;
+  usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
+}
+
 export const DEFAULT_CONFIG: DeepSeekCodeConfig = {
   apiKey: '',
   apiBase: 'https://api.deepseek.com/v1',
@@ -105,4 +123,7 @@ export const DEFAULT_CONFIG: DeepSeekCodeConfig = {
   maxTokens: 4096,
   temperature: 0.7,
   safeMode: true,
+  provider: 'openai',
+  projectDir: '',
+  maxContextTokens: 32000,
 };

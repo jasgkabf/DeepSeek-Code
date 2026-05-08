@@ -61,6 +61,14 @@ export function clearThinking(): void {
   process.stdout.write('\r\x1b[K');
 }
 
+export function showProgress(message: string): void {
+  process.stdout.write('\r\x1b[K' + chalk.cyan(' ⏳ ') + chalk.dim(message));
+}
+
+export function clearProgress(): void {
+  process.stdout.write('\r\x1b[K');
+}
+
 export function showInfo(msg: string): void {
   console.log(chalk.blue(' ℹ ') + msg);
 }
@@ -75,6 +83,11 @@ export function showWarning(msg: string): void {
 
 export function showError(msg: string): void {
   console.log(chalk.red(' ✗ ') + msg);
+}
+
+export function showErrorWithSuggestion(msg: string, suggestion: string): void {
+  console.log(chalk.red(' ✗ ') + msg);
+  console.log(chalk.dim('   💡 建议: ') + chalk.dim(suggestion));
 }
 
 export function showDivider(): void {

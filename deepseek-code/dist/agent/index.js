@@ -11,9 +11,10 @@ const SYSTEM_PROMPT = {
 
 你具备以下工具能力：
 - read_file: 读取项目文件内容
-- list_directory: 遍历目录、查看文件列表
+- list_directory: 遍历目录、查看文件列表（支持 depth 参数控制递归深度）
 - write_file: 创建新文件或覆盖写入文件
-- edit_file: 局部修改代码（查找替换）
+- append_file: 向文件末尾追加内容
+- edit_file: 局部修改代码（查找替换，支持 replace_all 参数替换所有匹配）
 - run_command: 执行 Shell 命令（npm、git、运行脚本等）
 
 工作原则：
@@ -27,6 +28,7 @@ const SYSTEM_PROMPT = {
 };
 async function runAgent(options) {
     const { config, messages, onContent } = options;
+    (0, tools_1.setToolConfig)(config);
     const allMessages = [SYSTEM_PROMPT, ...messages];
     const newMessages = [];
     let iteration = 0;

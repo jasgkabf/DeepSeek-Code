@@ -1,6 +1,6 @@
 import { ChatMessage, DeepSeekCodeConfig, ToolDefinition, ToolResult } from '../types';
 import { chatCompletionStream, ChatCompletionResult, StreamCallbacks } from '../api/client';
-import { TOOL_DEFINITIONS, buildToolResults } from './tools';
+import { TOOL_DEFINITIONS, buildToolResults, setToolConfig } from './tools';
 import { showAssistantPrefix, showDivider, showError } from '../ui/display';
 
 const MAX_AGENT_ITERATIONS = 10;
@@ -11,9 +11,10 @@ const SYSTEM_PROMPT: ChatMessage = {
 
 你具备以下工具能力：
 - read_file: 读取项目文件内容
-- list_directory: 遍历目录、查看文件列表
+- list_directory: 遍历目录、查看文件列表（支持 depth 参数控制递归深度）
 - write_file: 创建新文件或覆盖写入文件
-- edit_file: 局部修改代码（查找替换）
+- append_file: 向文件末尾追加内容
+- edit_file: 局部修改代码（查找替换，支持 replace_all 参数替换所有匹配）
 - run_command: 执行 Shell 命令（npm、git、运行脚本等）
 
 工作原则：
@@ -34,6 +35,8 @@ export interface AgentRunOptions {
 
 export async function runAgent(options: AgentRunOptions): Promise<ChatMessage[]> {
   const { config, messages, onContent } = options;
+  setToolConfig(config);
+
   const allMessages: ChatMessage[] = [SYSTEM_PROMPT, ...messages];
   const newMessages: ChatMessage[] = [];
   let iteration = 0;

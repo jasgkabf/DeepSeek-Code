@@ -1,15 +1,18 @@
 import * as path from 'path';
 
-const DANGEROUS_PATTERNS: RegExp[] = [
+const HARD_BLOCK_PATTERNS: RegExp[] = [
   /\brm\s+(-[a-zA-Z]*f[a-zA-Z]*\s+|.*--no-preserve-root.*)\//,
   /\brm\s+-rf\s+\//,
   /\bmkfs\b/,
   /\bdd\s+if=/,
   /\bformat\s+[A-Z]:/i,
+  />\s*\/dev\/sd/,
+];
+
+const SOFT_BLOCK_PATTERNS: RegExp[] = [
   /\bshutdown\b/,
   /\breboot\b/,
   /\binit\s+[06]/,
-  />\s*\/dev\/sd/,
   /\bchmod\s+-R\s+[0-7]*777\s+\//,
   /\bchown\s+-R\s+.*\s+\//,
   /\biptables\b/,
@@ -18,9 +21,7 @@ const DANGEROUS_PATTERNS: RegExp[] = [
 ];
 
 const PROTECTED_PATHS: string[] = [
-  '/etc/passwd',
-  '/etc/shadow',
-  '/etc/sudoers',
+  '/etc',
   '/boot',
   '/sys',
   '/proc',
@@ -34,8 +35,31 @@ const PROTECTED_PATHS: string[] = [
   'C:\\Program Files',
 ];
 
-export function isDangerousCommand(command: string): boolean {
-  return DANGEROUS_PATTERNS.some((p) => p.test(command));
+const CONFIRM_PATTERNS: RegExp[] = [
+  /\brm\s+/,
+  /\bgit\s+push/,
+  /\bgit\s+reset\s+--hard/,
+  /\bnpm\s+publish/,
+  /\bdocker\s+(rm|rmi)/,
+  /\bkubectl\s+delete/,
+  /\bdrop\s+table\b/i,
+  /\btruncate\s+/i,
+  /\bchmod\s+/,
+  /\bchown\s+/,
+];
+
+export function isHardBlockCommand(command: string): boolean {
+  return HARD_BLOCK_PATTERNS.some((p) => p.test(command));
+}
+
+export function isSoftBlockCommand(command: string): boolean {
+  return SOFT_BLOCK_PATTERNS.some((p) => p.test(command));
+}
+
+export function isDangerousCommand(command: string, safeMode = true): boolean {
+  if (isHardBlockCommand(command)) return true;
+  if (safeMode && isSoftBlockCommand(command)) return true;
+  return false;
 }
 
 export function isProtectedPath(filePath: string): boolean {
@@ -69,19 +93,8 @@ export function getDangerReason(command: string): string | null {
   return null;
 }
 
-export function shouldConfirm(command: string): boolean {
+export function shouldConfirm(command: string, safeMode = true): boolean {
+  if (!safeMode) return false;
   const lowerCmd = command.toLowerCase().trim();
-  const confirmPatterns: RegExp[] = [
-    /\brm\s+/,
-    /\bgit\s+push/,
-    /\bgit\s+reset\s+--hard/,
-    /\bnpm\s+publish/,
-    /\bdocker\s+(rm|rmi)/,
-    /\bkubectl\s+delete/,
-    /\bdrop\s+table\b/i,
-    /\btruncate\s+/i,
-    /\bchmod\s+/,
-    /\bchown\s+/,
-  ];
-  return confirmPatterns.some((p) => p.test(lowerCmd));
+  return CONFIRM_PATTERNS.some((p) => p.test(lowerCmd));
 }

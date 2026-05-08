@@ -54,6 +54,12 @@ class Chat {
             prompt: chalk_1.default.green.bold(' You ❯ '),
         });
     }
+    getConfig() {
+        return this.config;
+    }
+    setConfig(config) {
+        this.config = config;
+    }
     async start() {
         this.running = true;
         if (this.session.messages.length > 0) {
@@ -101,6 +107,16 @@ class Chat {
             case '/config':
                 (0, config_1.showConfig)(this.config);
                 break;
+            case '/set': {
+                if (parts.length < 3) {
+                    (0, display_1.showWarning)('用法: /set <key> <value>，例如: /set model deepseek-chat');
+                    return;
+                }
+                const key = parts[1];
+                const value = parts.slice(2).join(' ');
+                this.config = (0, config_1.setConfigValue)(this.config, key, value);
+                break;
+            }
             case '/history':
                 this.showHistory();
                 break;
@@ -109,6 +125,57 @@ class Chat {
                 (0, display_1.showSuccess)('已创建新会话');
                 (0, display_1.showDivider)();
                 break;
+            case '/sessions':
+                this.showSessions();
+                break;
+            case '/load': {
+                if (parts.length < 2) {
+                    (0, display_1.showWarning)('用法: /load <session_id>');
+                    return;
+                }
+                const sessionId = parts[1];
+                const loaded = (0, session_1.loadSession)(sessionId);
+                if (!loaded) {
+                    (0, display_1.showError)(`会话不存在: ${sessionId}`);
+                    return;
+                }
+                (0, session_1.saveSession)(this.session);
+                this.session = loaded;
+                (0, display_1.showSuccess)(`已加载会话: ${sessionId} (${loaded.messages.filter((m) => m.role === 'user').length} 条消息)`);
+                (0, display_1.showDivider)();
+                break;
+            }
+            case '/delete': {
+                if (parts.length < 2) {
+                    (0, display_1.showWarning)('用法: /delete <session_id>');
+                    return;
+                }
+                const delId = parts[1];
+                if (delId === this.session.id) {
+                    (0, display_1.showError)('不能删除当前活跃会话');
+                    return;
+                }
+                const confirmed = await (0, display_1.askConfirmation)(`确认删除会话 ${delId}?`);
+                if (confirmed) {
+                    const deleted = (0, session_1.deleteSession)(delId);
+                    if (deleted) {
+                        (0, display_1.showSuccess)(`会话已删除: ${delId}`);
+                    }
+                    else {
+                        (0, display_1.showError)(`会话不存在: ${delId}`);
+                    }
+                }
+                break;
+            }
+            case '/cd': {
+                if (parts.length < 2) {
+                    (0, display_1.showInfo)(`当前项目目录: ${this.config.projectDir || process.cwd()}`);
+                    return;
+                }
+                const newDir = parts.slice(1).join(' ');
+                this.config = (0, config_1.setConfigValue)(this.config, 'projectDir', newDir);
+                break;
+            }
             case '/exit':
             case '/quit':
             case '/q':
@@ -126,12 +193,17 @@ class Chat {
     showHelp() {
         console.log();
         (0, display_1.showInfo)(`${(0, display_1.brand)()} 可用命令:`);
-        console.log('  /help    - 显示帮助信息');
-        console.log('  /clear   - 清空当前会话上下文');
-        console.log('  /config  - 查看当前配置');
-        console.log('  /history - 查看对话历史');
-        console.log('  /new     - 创建新会话');
-        console.log('  /exit    - 退出 DeepSeek Code');
+        console.log('  /help              - 显示帮助信息');
+        console.log('  /clear             - 清空当前会话上下文');
+        console.log('  /config            - 查看当前配置');
+        console.log('  /set <key> <value> - 动态修改配置项');
+        console.log('  /history           - 查看对话历史');
+        console.log('  /new               - 创建新会话');
+        console.log('  /sessions          - 列出所有历史会话');
+        console.log('  /load <id>         - 加载指定会话');
+        console.log('  /delete <id>       - 删除指定会话');
+        console.log('  /cd [path]         - 查看/切换项目目录');
+        console.log('  /exit              - 退出 DeepSeek Code');
         console.log();
         (0, display_1.showInfo)('直接输入自然语言即可与 AI 对话，AI 可调用工具读写文件和执行命令');
         console.log();
@@ -149,13 +221,31 @@ class Chat {
         }
         console.log();
     }
+    showSessions() {
+        const sessions = (0, session_1.listSessions)();
+        if (sessions.length === 0) {
+            (0, display_1.showInfo)('暂无历史会话');
+            return;
+        }
+        console.log();
+        (0, display_1.showInfo)(`历史会话 (${sessions.length} 个):`);
+        for (const s of sessions) {
+            const isActive = s.id === this.session.id;
+            const prefix = isActive ? chalk_1.default.green('* ') : '  ';
+            const date = new Date(s.createdAt).toLocaleString('zh-CN');
+            console.log(`${prefix}${chalk_1.default.bold(s.id)} - ${date} (${s.messageCount} 条消息)${isActive ? chalk_1.default.green(' [当前]') : ''}`);
+        }
+        console.log();
+        (0, display_1.showInfo)('使用 /load <id> 加载会话，/delete <id> 删除会话');
+        console.log();
+    }
     async handleUserMessage(input) {
         const userMessage = {
             role: 'user',
             content: input,
         };
         this.session = (0, session_1.addToSession)(this.session, userMessage);
-        this.session = (0, session_1.trimSessionContext)(this.session);
+        this.session = (0, session_1.trimSessionContext)(this.session, this.config.maxContextTokens);
         console.log();
         (0, display_1.showAssistantPrefix)();
         try {
@@ -168,7 +258,19 @@ class Chat {
             }
         }
         catch (err) {
-            (0, display_1.showError)(`处理消息时出错: ${err.message}`);
+            const msg = err.message || '';
+            if (msg.includes('401') || msg.includes('认证')) {
+                (0, display_1.showErrorWithSuggestion)(`处理消息时出错: ${msg}`, '请检查 API Key 是否正确，可使用 /set apiKey <key> 更新');
+            }
+            else if (msg.includes('429') || msg.includes('速率')) {
+                (0, display_1.showErrorWithSuggestion)(`处理消息时出错: ${msg}`, '请稍后重试，或检查 API 账户余额');
+            }
+            else if (msg.includes('ECONNREFUSED') || msg.includes('ENOTFOUND')) {
+                (0, display_1.showErrorWithSuggestion)(`处理消息时出错: ${msg}`, '请检查网络连接和 API Base URL 是否正确');
+            }
+            else {
+                (0, display_1.showError)(`处理消息时出错: ${msg}`);
+            }
         }
         (0, display_1.showDivider)();
     }

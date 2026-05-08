@@ -46,10 +46,13 @@ exports.showToolCall = showToolCall;
 exports.showToolResult = showToolResult;
 exports.showThinking = showThinking;
 exports.clearThinking = clearThinking;
+exports.showProgress = showProgress;
+exports.clearProgress = clearProgress;
 exports.showInfo = showInfo;
 exports.showSuccess = showSuccess;
 exports.showWarning = showWarning;
 exports.showError = showError;
+exports.showErrorWithSuggestion = showErrorWithSuggestion;
 exports.showDivider = showDivider;
 exports.askConfirmation = askConfirmation;
 exports.askInput = askInput;
@@ -104,6 +107,12 @@ function showThinking() {
 function clearThinking() {
     process.stdout.write('\r\x1b[K');
 }
+function showProgress(message) {
+    process.stdout.write('\r\x1b[K' + chalk_1.default.cyan(' ⏳ ') + chalk_1.default.dim(message));
+}
+function clearProgress() {
+    process.stdout.write('\r\x1b[K');
+}
 function showInfo(msg) {
     console.log(chalk_1.default.blue(' ℹ ') + msg);
 }
@@ -115,6 +124,10 @@ function showWarning(msg) {
 }
 function showError(msg) {
     console.log(chalk_1.default.red(' ✗ ') + msg);
+}
+function showErrorWithSuggestion(msg, suggestion) {
+    console.log(chalk_1.default.red(' ✗ ') + msg);
+    console.log(chalk_1.default.dim('   💡 建议: ') + chalk_1.default.dim(suggestion));
 }
 function showDivider() {
     console.log(separator());

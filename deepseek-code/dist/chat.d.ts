@@ -5,10 +5,13 @@ export declare class Chat {
     private rl;
     private running;
     constructor(config: DeepSeekCodeConfig);
+    getConfig(): DeepSeekCodeConfig;
+    setConfig(config: DeepSeekCodeConfig): void;
     start(): Promise<void>;
     private handleCommand;
     private showHelp;
     private showHistory;
+    private showSessions;
     private handleUserMessage;
     stop(): void;
 }

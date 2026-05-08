@@ -34,6 +34,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TOOL_DEFINITIONS = void 0;
+exports.setToolConfig = setToolConfig;
 exports.executeTool = executeTool;
 exports.buildToolResults = buildToolResults;
 const fs = __importStar(require("fs"));
@@ -75,6 +76,10 @@ exports.TOOL_DEFINITIONS = [
                         type: 'boolean',
                         description: '是否递归列出子目录内容，默认为 false',
                     },
+                    depth: {
+                        type: 'number',
+                        description: '递归深度，1-5，默认为 1（不递归）或 3（recursive=true 时）',
+                    },
                 },
                 required: ['path'],
             },
@@ -104,6 +109,27 @@ exports.TOOL_DEFINITIONS = [
     {
         type: 'function',
         function: {
+            name: 'append_file',
+            description: '向文件末尾追加内容。如果文件不存在则创建新文件。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    path: {
+                        type: 'string',
+                        description: '要追加的文件路径',
+                    },
+                    content: {
+                        type: 'string',
+                        description: '要追加的文件内容',
+                    },
+                },
+                required: ['path', 'content'],
+            },
+        },
+    },
+    {
+        type: 'function',
+        function: {
             name: 'edit_file',
             description: '编辑已有文件：查找文件中的指定文本并替换为新文本。用于局部修改代码。',
             parameters: {
@@ -120,6 +146,10 @@ exports.TOOL_DEFINITIONS = [
                     new_text: {
                         type: 'string',
                         description: '替换后的新文本',
+                    },
+                    replace_all: {
+                        type: 'boolean',
+                        description: '是否替换所有匹配项，默认为 false（仅替换第一处且要求唯一匹配）',
                     },
                 },
                 required: ['path', 'old_text', 'new_text'],
@@ -140,7 +170,7 @@ exports.TOOL_DEFINITIONS = [
                     },
                     cwd: {
                         type: 'string',
-                        description: '命令执行的工作目录，默认为当前目录',
+                        description: '命令执行的工作目录，默认为项目目录',
                     },
                 },
                 required: ['command'],
@@ -174,8 +204,15 @@ async function executeListDirectory(args) {
         return `错误: 路径不是目录 - ${dirPath}`;
     }
     try {
-        const items = listDirRecursive(dirPath, args.recursive ? 3 : 1, 0);
-        return `目录: ${dirPath}\n${'─'.repeat(50)}\n${items}`;
+        let maxDepth;
+        if (args.depth !== undefined && args.depth !== null) {
+            maxDepth = Math.min(Math.max(1, args.depth), 5);
+        }
+        else {
+            maxDepth = args.recursive ? 3 : 1;
+        }
+        const items = listDirRecursive(dirPath, maxDepth, 0);
+        return `目录: ${dirPath} (深度: ${maxDepth})\n${'─'.repeat(50)}\n${items}`;
     }
     catch (err) {
         return `错误: 无法列出目录 - ${err.message}`;
@@ -230,6 +267,23 @@ async function executeWriteFile(args) {
         return `错误: 无法写入文件 - ${err.message}`;
     }
 }
+async function executeAppendFile(args) {
+    const filePath = path.resolve(args.path);
+    if ((0, safety_1.isWriteToProtectedPath)(filePath)) {
+        return `错误: 禁止写入受保护的系统路径 - ${filePath}`;
+    }
+    try {
+        const dir = path.dirname(filePath);
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        fs.appendFileSync(filePath, args.content, 'utf-8');
+        return `成功: 内容已追加 - ${filePath} (${args.content.length} 字符)`;
+    }
+    catch (err) {
+        return `错误: 无法追加到文件 - ${err.message}`;
+    }
+}
 async function executeEditFile(args) {
     const filePath = path.resolve(args.path);
     if ((0, safety_1.isWriteToProtectedPath)(filePath)) {
@@ -246,38 +300,50 @@ async function executeEditFile(args) {
             return `错误: 未找到要替换的文本。文件前 500 字符:\n${preview}`;
         }
         const occurrences = content.split(args.old_text).length - 1;
+        if (args.replace_all) {
+            content = content.split(args.old_text).join(args.new_text);
+            fs.writeFileSync(filePath, content, 'utf-8');
+            return `成功: 文件已编辑 - ${filePath} (替换了 ${occurrences} 处)`;
+        }
         if (occurrences > 1) {
-            return `警告: 找到 ${occurrences} 处匹配，请提供更精确的上下文以唯一定位`;
+            return `警告: 找到 ${occurrences} 处匹配，请提供更精确的上下文以唯一定位，或设置 replace_all=true 替换所有匹配`;
         }
         content = content.substring(0, index) + args.new_text + content.substring(index + args.old_text.length);
         fs.writeFileSync(filePath, content, 'utf-8');
-        return `成功: 文件已编辑 - ${filePath} (替换了 ${occurrences} 处)`;
+        return `成功: 文件已编辑 - ${filePath} (替换了 1 处)`;
     }
     catch (err) {
         return `错误: 无法编辑文件 - ${err.message}`;
     }
 }
+let _config = null;
+function setToolConfig(config) {
+    _config = config;
+}
 async function executeRunCommand(args) {
     const commandStr = args.command;
-    if ((0, safety_1.isDangerousCommand)(commandStr)) {
+    const safeMode = _config?.safeMode ?? true;
+    if ((0, safety_1.isDangerousCommand)(commandStr, safeMode)) {
         const reason = (0, safety_1.getDangerReason)(commandStr);
         return `错误: 命令被安全机制拦截 - ${reason || '该命令被识别为潜在危险操作'}`;
     }
-    if ((0, safety_1.shouldConfirm)(commandStr)) {
+    if ((0, safety_1.shouldConfirm)(commandStr, safeMode)) {
         (0, display_1.showWarning)(`即将执行命令: ${commandStr}`);
         const confirmed = await (0, display_1.askConfirmation)('确认执行此命令?');
         if (!confirmed) {
             return '用户取消了命令执行';
         }
     }
+    (0, display_1.showProgress)(`执行命令: ${commandStr}`);
     return new Promise((resolve) => {
-        const cwd = args.cwd ? path.resolve(args.cwd) : process.cwd();
+        const cwd = args.cwd ? path.resolve(args.cwd) : (_config?.projectDir || process.cwd());
         const execOptions = {
             cwd,
             maxBuffer: 1024 * 1024 * 10,
             timeout: 120000,
         };
         child_process.exec(commandStr, execOptions, (error, stdout, stderr) => {
+            (0, display_1.clearProgress)();
             let result = '';
             if (stdout) {
                 result += stdout;
@@ -286,7 +352,12 @@ async function executeRunCommand(args) {
                 result += (result ? '\n' : '') + '[stderr] ' + stderr;
             }
             if (error) {
-                result += (result ? '\n' : '') + `[exit code ${error.code || 1}]`;
+                if (error.killed) {
+                    result += (result ? '\n' : '') + '[命令执行超时 (120s)]';
+                }
+                else {
+                    result += (result ? '\n' : '') + `[exit code ${error.code || 1}]`;
+                }
             }
             resolve(result || '(命令执行完成，无输出)');
         });
@@ -311,6 +382,9 @@ async function executeTool(name, argsStr) {
             break;
         case 'write_file':
             result = await executeWriteFile(args);
+            break;
+        case 'append_file':
+            result = await executeAppendFile(args);
             break;
         case 'edit_file':
             result = await executeEditFile(args);

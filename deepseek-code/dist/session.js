@@ -36,6 +36,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.createSession = createSession;
 exports.saveSession = saveSession;
 exports.loadSession = loadSession;
+exports.deleteSession = deleteSession;
 exports.listSessions = listSessions;
 exports.loadLatestSession = loadLatestSession;
 exports.addToSession = addToSession;
@@ -79,6 +80,19 @@ function loadSession(id) {
         return null;
     }
 }
+function deleteSession(id) {
+    ensureSessionDir();
+    const filePath = path.join(SESSION_DIR, `${id}.json`);
+    if (!fs.existsSync(filePath))
+        return false;
+    try {
+        fs.unlinkSync(filePath);
+        return true;
+    }
+    catch {
+        return false;
+    }
+}
 function listSessions() {
     ensureSessionDir();
     const files = fs.readdirSync(SESSION_DIR).filter((f) => f.endsWith('.json'));
@@ -117,13 +131,41 @@ function clearSessionMessages(session) {
     saveSession(session);
     return session;
 }
-function trimSessionContext(session, maxMessages = 50) {
-    if (session.messages.length <= maxMessages)
+function estimateTokens(text) {
+    const cjkChars = (text.match(/[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]/g) || []).length;
+    const otherChars = text.length - cjkChars;
+    return Math.ceil(cjkChars / 1.5 + otherChars / 4);
+}
+function estimateMessagesTokens(messages) {
+    return messages.reduce((total, msg) => {
+        let msgTokens = estimateTokens(msg.content || '');
+        if (msg.tool_calls) {
+            for (const tc of msg.tool_calls) {
+                msgTokens += estimateTokens(tc.function.name + tc.function.arguments);
+            }
+        }
+        return total + msgTokens;
+    }, 0);
+}
+function trimSessionContext(session, maxTokens) {
+    const limit = maxTokens || 32000;
+    const totalTokens = estimateMessagesTokens(session.messages);
+    if (totalTokens <= limit)
         return session;
     const systemMsgs = session.messages.filter((m) => m.role === 'system');
     const otherMsgs = session.messages.filter((m) => m.role !== 'system');
-    const trimmed = otherMsgs.slice(otherMsgs.length - maxMessages + systemMsgs.length);
-    session.messages = [...systemMsgs, ...trimmed];
+    const systemTokens = estimateMessagesTokens(systemMsgs);
+    const remainingBudget = limit - systemTokens;
+    let kept = [];
+    let usedTokens = 0;
+    for (let i = otherMsgs.length - 1; i >= 0; i--) {
+        const msgTokens = estimateMessagesTokens([otherMsgs[i]]);
+        if (usedTokens + msgTokens > remainingBudget)
+            break;
+        kept.unshift(otherMsgs[i]);
+        usedTokens += msgTokens;
+    }
+    session.messages = [...systemMsgs, ...kept];
     saveSession(session);
     return session;
 }

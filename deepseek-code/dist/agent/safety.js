@@ -33,22 +33,26 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.isHardBlockCommand = isHardBlockCommand;
+exports.isSoftBlockCommand = isSoftBlockCommand;
 exports.isDangerousCommand = isDangerousCommand;
 exports.isProtectedPath = isProtectedPath;
 exports.isWriteToProtectedPath = isWriteToProtectedPath;
 exports.getDangerReason = getDangerReason;
 exports.shouldConfirm = shouldConfirm;
 const path = __importStar(require("path"));
-const DANGEROUS_PATTERNS = [
+const HARD_BLOCK_PATTERNS = [
     /\brm\s+(-[a-zA-Z]*f[a-zA-Z]*\s+|.*--no-preserve-root.*)\//,
     /\brm\s+-rf\s+\//,
     /\bmkfs\b/,
     /\bdd\s+if=/,
     /\bformat\s+[A-Z]:/i,
+    />\s*\/dev\/sd/,
+];
+const SOFT_BLOCK_PATTERNS = [
     /\bshutdown\b/,
     /\breboot\b/,
     /\binit\s+[06]/,
-    />\s*\/dev\/sd/,
     /\bchmod\s+-R\s+[0-7]*777\s+\//,
     /\bchown\s+-R\s+.*\s+\//,
     /\biptables\b/,
@@ -56,9 +60,7 @@ const DANGEROUS_PATTERNS = [
     /\bsystemctl\s+(stop|disable)\s+(ssh|sshd|network|firewall)/,
 ];
 const PROTECTED_PATHS = [
-    '/etc/passwd',
-    '/etc/shadow',
-    '/etc/sudoers',
+    '/etc',
     '/boot',
     '/sys',
     '/proc',
@@ -71,8 +73,30 @@ const PROTECTED_PATHS = [
     'C:\\Windows',
     'C:\\Program Files',
 ];
-function isDangerousCommand(command) {
-    return DANGEROUS_PATTERNS.some((p) => p.test(command));
+const CONFIRM_PATTERNS = [
+    /\brm\s+/,
+    /\bgit\s+push/,
+    /\bgit\s+reset\s+--hard/,
+    /\bnpm\s+publish/,
+    /\bdocker\s+(rm|rmi)/,
+    /\bkubectl\s+delete/,
+    /\bdrop\s+table\b/i,
+    /\btruncate\s+/i,
+    /\bchmod\s+/,
+    /\bchown\s+/,
+];
+function isHardBlockCommand(command) {
+    return HARD_BLOCK_PATTERNS.some((p) => p.test(command));
+}
+function isSoftBlockCommand(command) {
+    return SOFT_BLOCK_PATTERNS.some((p) => p.test(command));
+}
+function isDangerousCommand(command, safeMode = true) {
+    if (isHardBlockCommand(command))
+        return true;
+    if (safeMode && isSoftBlockCommand(command))
+        return true;
+    return false;
 }
 function isProtectedPath(filePath) {
     const resolved = path.resolve(filePath);
@@ -102,20 +126,10 @@ function getDangerReason(command) {
     }
     return null;
 }
-function shouldConfirm(command) {
+function shouldConfirm(command, safeMode = true) {
+    if (!safeMode)
+        return false;
     const lowerCmd = command.toLowerCase().trim();
-    const confirmPatterns = [
-        /\brm\s+/,
-        /\bgit\s+push/,
-        /\bgit\s+reset\s+--hard/,
-        /\bnpm\s+publish/,
-        /\bdocker\s+(rm|rmi)/,
-        /\bkubectl\s+delete/,
-        /\bdrop\s+table\b/i,
-        /\btruncate\s+/i,
-        /\bchmod\s+/,
-        /\bchown\s+/,
-    ];
-    return confirmPatterns.some((p) => p.test(lowerCmd));
+    return CONFIRM_PATTERNS.some((p) => p.test(lowerCmd));
 }
 //# sourceMappingURL=safety.js.map

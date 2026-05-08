@@ -16,11 +16,12 @@ export async function main(): Promise<void> {
       process.exit(1);
     }
   } else {
-    showInfo(`已加载配置 - 模型: ${config.model}`);
+    showInfo(`已加载配置 - 供应商: ${config.provider}, 模型: ${config.model}`);
   }
 
   if (!config.apiKey) {
     showError('API Key 未设置，无法启动');
+    showInfo('请运行配置向导或使用 /set apiKey <key> 设置');
     process.exit(1);
   }
 
