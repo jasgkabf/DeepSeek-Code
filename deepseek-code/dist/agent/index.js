@@ -25,6 +25,7 @@ function buildSystemPrompt() {
         const skillList = skills.map((s) => `${s.name} (${s.toolCount} 个工具: ${s.description})`).join('\n- ');
         skillNote = `\n\n已安装的 Skills (扩展工具):\n- ${skillList}`;
     }
+    const builtinSkillsPrompt = (0, loader_1.buildBuiltinSkillsPrompt)();
     return {
         role: 'system',
         content: `你是 DeepSeek Code，一个强大的命令行 AI 编程助手。你可以帮助用户编写代码、调试问题、管理项目文件和执行命令。
@@ -50,7 +51,7 @@ function buildSystemPrompt() {
 6. 执行命令后：检查输出，如果失败则分析原因并重试
 7. 完成任务后：简要总结做了什么，不要重复输出大段代码
 
-请用中文回复用户，代码注释使用英文。${envNote}${skillNote}`,
+请用中文回复用户，代码注释使用英文。${envNote}${skillNote}${builtinSkillsPrompt}`,
     };
 }
 function getAllToolDefinitions() {

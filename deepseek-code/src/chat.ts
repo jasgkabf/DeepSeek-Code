@@ -6,7 +6,7 @@ import { runAgent } from './agent';
 import { showUserPrefix, showAssistantPrefix, showDivider, showInfo, showSuccess, showWarning, showError, showErrorWithSuggestion, askConfirmation, askInput, brand } from './ui/display';
 import { showConfig, setConfigValue, switchModelWizard } from './config';
 import { listInstalledSkills, installFromUrl, installFromFolder, removeSkill } from './skills/manager';
-import { clearLoadedSkills } from './skills/loader';
+import { clearLoadedSkills, listBuiltinSkillNames } from './skills/loader';
 import { performUninstall } from './uninstall';
 
 export class Chat {
@@ -367,14 +367,26 @@ export class Chat {
   }
 
   private showSkills(): void {
+    const builtinNames = listBuiltinSkillNames();
     const skills = listInstalledSkills();
+
+    console.log();
+    if (builtinNames.length > 0) {
+      showInfo(`内置知识型 Skills (${builtinNames.length} 个):`);
+      for (const name of builtinNames) {
+        console.log(`  📚 ${chalk.bold(name)}`);
+      }
+      console.log();
+      showInfo('(内置 Skills 自动生效，无需安装)');
+      console.log();
+    }
+
     if (skills.length === 0) {
-      showInfo('暂未安装任何 Skill');
+      showInfo('暂未安装任何扩展 Skill');
       showInfo('使用 /skill install <网址> 安装，或告诉 AI 帮你安装');
       return;
     }
-    console.log();
-    showInfo(`已安装的 Skills (${skills.length} 个):`);
+    showInfo(`已安装的扩展 Skills (${skills.length} 个):`);
     console.log();
     for (const skill of skills) {
       console.log(`  🔌 ${chalk.bold(skill.name)} v${skill.version}`);

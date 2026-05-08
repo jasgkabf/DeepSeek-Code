@@ -379,14 +379,24 @@ class Chat {
         this.rl.close();
     }
     showSkills() {
+        const builtinNames = (0, loader_1.listBuiltinSkillNames)();
         const skills = (0, manager_1.listInstalledSkills)();
+        console.log();
+        if (builtinNames.length > 0) {
+            (0, display_1.showInfo)(`内置知识型 Skills (${builtinNames.length} 个):`);
+            for (const name of builtinNames) {
+                console.log(`  📚 ${chalk_1.default.bold(name)}`);
+            }
+            console.log();
+            (0, display_1.showInfo)('(内置 Skills 自动生效，无需安装)');
+            console.log();
+        }
         if (skills.length === 0) {
-            (0, display_1.showInfo)('暂未安装任何 Skill');
+            (0, display_1.showInfo)('暂未安装任何扩展 Skill');
             (0, display_1.showInfo)('使用 /skill install <网址> 安装，或告诉 AI 帮你安装');
             return;
         }
-        console.log();
-        (0, display_1.showInfo)(`已安装的 Skills (${skills.length} 个):`);
+        (0, display_1.showInfo)(`已安装的扩展 Skills (${skills.length} 个):`);
         console.log();
         for (const skill of skills) {
             console.log(`  🔌 ${chalk_1.default.bold(skill.name)} v${skill.version}`);
