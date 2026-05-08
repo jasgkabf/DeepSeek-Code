@@ -1,57 +1,59 @@
 import { DeepSeekCodeConfig } from './types';
-import { loadConfig, saveConfig, isConfigured, setupWizard } from './config';
+import { loadConfig, saveConfig, isConfigured, setupWizard, initLanguage } from './config';
 import { showBanner, showInfo, showError, showSuccess, showWarning } from './ui/display';
 import { Chat } from './chat';
 import { detectEnvironment } from './env';
+import { t, template, setLanguage } from './i18n';
 
 export async function main(): Promise<void> {
+  let config = loadConfig();
+  initLanguage(config);
+
   const env = detectEnvironment();
 
   if (env.isTermux) {
-    showInfo('检测到 Termux 环境');
+    showInfo(t().cli.termuxDetected);
     if (!env.hasStorageAccess) {
-      showWarning('未获取存储访问权限，访问 /sdcard 等路径可能失败');
-      showInfo('请运行: termux-setup-storage（需先安装: pkg install termux-api）');
+      showWarning(t().cli.storageWarning);
+      showInfo(t().cli.storageHint);
       console.log();
     }
   }
 
   showBanner();
 
-  let config = loadConfig();
-
   if (!isConfigured(config)) {
     try {
       config = await setupWizard();
     } catch (err: any) {
-      showError(`配置向导失败: ${err.message}`);
+      showError(err.message);
       process.exit(1);
     }
   } else {
-    const envLabel = env.isTermux ? 'Termux' : '标准';
-    showInfo(`已加载配置 - 供应商: ${config.provider}, 模型: ${config.model} [${envLabel}]`);
+    const envLabel = env.isTermux ? 'Termux' : (config.language === 'zh' ? '标准' : 'Standard');
+    showInfo(template(t().cli.configLoaded, { provider: config.provider, model: config.model, env: envLabel }));
   }
 
   if (!config.apiKey) {
-    showError('API Key 未设置，无法启动');
-    showInfo('请运行配置向导或使用 /set apiKey <key> 设置');
+    showError(t().cli.apiKeyNotSet);
+    showInfo(t().cli.apiKeyHint);
     process.exit(1);
   }
 
-  showSuccess('DeepSeek Code 已就绪');
+  showSuccess(t().cli.ready);
   console.log();
 
   const chat = new Chat(config);
 
   process.on('SIGINT', () => {
     console.log();
-    showInfo('DeepSeek Code 会话已保存，再见！');
+    showInfo(t().cli.goodbye);
     process.exit(0);
   });
 
   process.on('SIGTERM', () => {
     console.log();
-    showInfo('DeepSeek Code 会话已保存，再见！');
+    showInfo(t().cli.goodbye);
     process.exit(0);
   });
 

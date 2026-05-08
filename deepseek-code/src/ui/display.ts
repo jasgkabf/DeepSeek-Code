@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import * as readline from 'readline';
 import { detectEnvironment } from '../env';
+import { t } from '../i18n';
 
 const BRAND = chalk.cyan.bold('DeepSeek Code');
 const BRAND_SHORT = chalk.cyan.bold('DS');
@@ -54,11 +55,11 @@ export function showBanner(): void {
     console.log(line);
   }
   console.log();
-  console.log(chalk.dim('  对标 Claude Code / Codex 的命令行 AI 编程助手'));
+  console.log(chalk.dim('  ' + t().banner.subtitle));
   if (env.isTermux) {
-    console.log(chalk.dim('  运行环境: Termux (Android)'));
+    console.log(chalk.dim('  ' + t().banner.termuxEnv));
   }
-  console.log(chalk.dim('  输入 /help 查看帮助，/exit 退出'));
+  console.log(chalk.dim('  ' + t().banner.helpHint));
   console.log();
   console.log(separator());
   console.log();

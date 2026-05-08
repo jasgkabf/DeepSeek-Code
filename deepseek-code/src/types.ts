@@ -1,4 +1,5 @@
 export type LLMProvider = 'openai' | 'claude';
+export type AppLanguage = 'zh' | 'en';
 
 export interface DeepSeekCodeConfig {
   apiKey: string;
@@ -13,6 +14,7 @@ export interface DeepSeekCodeConfig {
   provider: LLMProvider;
   projectDir: string;
   maxContextTokens: number;
+  language: AppLanguage;
 }
 
 export interface ChatMessage {
@@ -134,4 +136,5 @@ export const DEFAULT_CONFIG: DeepSeekCodeConfig = {
   provider: 'openai',
   projectDir: '',
   maxContextTokens: 32000,
+  language: 'zh',
 };

@@ -1,9 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { DeepSeekCodeConfig, DEFAULT_CONFIG, LLMProvider } from './types';
+import { DeepSeekCodeConfig, DEFAULT_CONFIG, LLMProvider, AppLanguage } from './types';
 import { encrypt, decrypt, isEncrypted } from './crypto';
 import { askInput, showInfo, showSuccess, showWarning } from './ui/display';
+import { setLanguage, t, template } from './i18n';
 
 const CONFIG_DIR = path.join(os.homedir(), '.deepseek-code');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
@@ -50,6 +51,10 @@ export function saveConfig(config: DeepSeekCodeConfig): void {
   fs.writeFileSync(CONFIG_FILE, JSON.stringify(toSave, null, 2), 'utf-8');
 }
 
+export function initLanguage(config: DeepSeekCodeConfig): void {
+  setLanguage(config.language || 'zh');
+}
+
 export function isConfigured(config: DeepSeekCodeConfig): boolean {
   return config.apiKey.length > 0;
 }
@@ -64,23 +69,31 @@ function showPresets(): void {
 }
 
 export async function setupWizard(): Promise<DeepSeekCodeConfig> {
-  showInfo('首次使用 DeepSeek Code，请配置 API 信息');
+  console.log();
+  console.log('  1. 中文');
+  console.log('  2. English');
+  console.log();
+  const langChoice = await askInput('请选择语言 / Select language (1-2)');
+  const lang: AppLanguage = langChoice === '2' ? 'en' : 'zh';
+  setLanguage(lang);
+
+  showInfo(t().setup.firstTime);
   console.log();
 
-  const config = await runModelSetup({ ...DEFAULT_CONFIG, projectDir: process.cwd() });
+  const config = await runModelSetup({ ...DEFAULT_CONFIG, projectDir: process.cwd(), language: lang });
   saveConfig(config);
-  showSuccess('配置已保存到 ' + CONFIG_FILE);
+  showSuccess(template(t().setup.configSaved, { path: CONFIG_FILE }));
   console.log();
   return config;
 }
 
 export async function switchModelWizard(config: DeepSeekCodeConfig): Promise<DeepSeekCodeConfig> {
-  showInfo('当前模型: ' + config.model + ' (' + config.apiBase + ')');
+  showInfo(template(t().setup.currentModel, { model: config.model, url: config.apiBase }));
   console.log();
 
   const newConfig = await runModelSetup(config);
   saveConfig(newConfig);
-  showSuccess('模型切换成功！当前模型: ' + newConfig.model);
+  showSuccess(template(t().setup.switchSuccess, { model: newConfig.model }));
   console.log();
   return newConfig;
 }
@@ -190,6 +203,7 @@ export function setConfigValue(config: DeepSeekCodeConfig, key: string, value: s
     provider: (c, v) => { if (v === 'openai' || v === 'claude') c.provider = v; },
     projectDir: (c, v) => { c.projectDir = v; },
     maxContextTokens: (c, v) => { const n = parseInt(v); if (!isNaN(n)) c.maxContextTokens = n; },
+    language: (c, v) => { if (v === 'zh' || v === 'en') { c.language = v; setLanguage(v); } },
   };
 
   const setter = validKeys[key];
