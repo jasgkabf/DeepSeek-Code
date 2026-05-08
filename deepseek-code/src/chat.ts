@@ -194,7 +194,8 @@ export class Chat {
     console.log();
     showInfo(`对话历史 (${userMsgs.length} 条):`);
     for (const msg of userMsgs) {
-      console.log(chalk.dim(`  • ${msg.content.substring(0, 80)}${msg.content.length > 80 ? '...' : ''}`));
+      const text = msg.content || '';
+      console.log(chalk.dim(`  • ${text.substring(0, 80)}${text.length > 80 ? '...' : ''}`));
     }
     console.log();
   }

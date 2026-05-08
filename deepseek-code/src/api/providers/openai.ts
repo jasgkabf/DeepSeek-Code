@@ -4,13 +4,25 @@ import { DeepSeekCodeConfig, ChatMessage, ToolDefinition, StreamChunk, ToolCall,
 import { LLMProviderBase } from './base';
 
 function buildRequestBody(messages: ChatMessage[], tools: ToolDefinition[], config: DeepSeekCodeConfig, stream: boolean) {
+  const serialized = messages.map((m) => {
+    const msg: any = { role: m.role };
+    if (m.content !== null && m.content !== undefined) msg.content = m.content;
+    if (m.reasoning_content) msg.reasoning_content = m.reasoning_content;
+    if (m.tool_calls) msg.tool_calls = m.tool_calls;
+    if (m.tool_call_id) msg.tool_call_id = m.tool_call_id;
+    if (m.name) msg.name = m.name;
+    return msg;
+  });
+
   const body: any = {
     model: config.model,
-    messages,
+    messages: serialized,
     max_tokens: config.maxTokens,
-    temperature: config.temperature,
     stream,
   };
+  if (config.temperature !== undefined && config.model !== 'deepseek-reasoner') {
+    body.temperature = config.temperature;
+  }
   if (tools.length > 0) {
     body.tools = tools;
     body.tool_choice = 'auto';
@@ -20,6 +32,12 @@ function buildRequestBody(messages: ChatMessage[], tools: ToolDefinition[], conf
 
 function parseError(statusCode: number, body: string): Error {
   switch (statusCode) {
+    case 400: {
+      if (body.includes('reasoning_content')) {
+        return new Error(`推理模型请求格式错误: reasoning_content 必须回传 (HTTP ${statusCode})`);
+      }
+      return new Error(`请求参数错误: ${body} (HTTP ${statusCode})`);
+    }
     case 401:
       return new Error(`认证失败: API Key 无效或已过期，请检查配置 (HTTP ${statusCode})`);
     case 403:
@@ -68,6 +86,7 @@ export class OpenAIProvider extends LLMProviderBase {
           }
 
           let fullContent = '';
+          let fullReasoningContent = '';
           const toolCallsMap = new Map<number, ToolCall>();
           let usage: any = undefined;
           let buffer = '';
@@ -90,6 +109,9 @@ export class OpenAIProvider extends LLMProviderBase {
                 if (parsed.usage) usage = parsed.usage;
 
                 const delta = choice.delta;
+                if (delta.reasoning_content) {
+                  fullReasoningContent += delta.reasoning_content;
+                }
                 if (delta.content) {
                   fullContent += delta.content;
                   callbacks.onContent(delta.content);
@@ -124,7 +146,10 @@ export class OpenAIProvider extends LLMProviderBase {
           res.on('end', () => {
             callbacks.onDone();
             const toolCalls = Array.from(toolCallsMap.values());
-            const message: ChatMessage = { role: 'assistant', content: fullContent };
+            const message: ChatMessage = { role: 'assistant', content: fullContent || null };
+            if (fullReasoningContent) {
+              message.reasoning_content = fullReasoningContent;
+            }
             if (toolCalls.length > 0) message.tool_calls = toolCalls;
             resolve({ message, usage });
           });
@@ -164,7 +189,14 @@ export class OpenAIProvider extends LLMProviderBase {
             }
             try {
               const parsed = JSON.parse(data);
-              resolve({ message: parsed.choices[0].message, usage: parsed.usage });
+              const msg = parsed.choices[0].message;
+              const message: ChatMessage = {
+                role: msg.role || 'assistant',
+                content: msg.content || null,
+              };
+              if (msg.reasoning_content) message.reasoning_content = msg.reasoning_content;
+              if (msg.tool_calls) message.tool_calls = msg.tool_calls;
+              resolve({ message, usage: parsed.usage });
             } catch (err) {
               reject(new Error(`解析 API 响应失败: ${err}`));
             }

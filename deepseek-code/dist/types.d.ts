@@ -12,10 +12,11 @@ export interface DeepSeekCodeConfig {
 }
 export interface ChatMessage {
     role: 'system' | 'user' | 'assistant' | 'tool';
-    content: string;
+    content: string | null;
     tool_calls?: ToolCall[];
     tool_call_id?: string;
     name?: string;
+    reasoning_content?: string;
 }
 export interface ToolCall {
     id: string;
@@ -50,7 +51,8 @@ export interface Session {
 }
 export interface StreamDelta {
     role?: string;
-    content?: string;
+    content?: string | null;
+    reasoning_content?: string;
     tool_calls?: Array<{
         index: number;
         id?: string;

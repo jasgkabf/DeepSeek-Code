@@ -38,13 +38,29 @@ const https = __importStar(require("https"));
 const http = __importStar(require("http"));
 const base_1 = require("./base");
 function buildRequestBody(messages, tools, config, stream) {
+    const serialized = messages.map((m) => {
+        const msg = { role: m.role };
+        if (m.content !== null && m.content !== undefined)
+            msg.content = m.content;
+        if (m.reasoning_content)
+            msg.reasoning_content = m.reasoning_content;
+        if (m.tool_calls)
+            msg.tool_calls = m.tool_calls;
+        if (m.tool_call_id)
+            msg.tool_call_id = m.tool_call_id;
+        if (m.name)
+            msg.name = m.name;
+        return msg;
+    });
     const body = {
         model: config.model,
-        messages,
+        messages: serialized,
         max_tokens: config.maxTokens,
-        temperature: config.temperature,
         stream,
     };
+    if (config.temperature !== undefined && config.model !== 'deepseek-reasoner') {
+        body.temperature = config.temperature;
+    }
     if (tools.length > 0) {
         body.tools = tools;
         body.tool_choice = 'auto';
@@ -53,6 +69,12 @@ function buildRequestBody(messages, tools, config, stream) {
 }
 function parseError(statusCode, body) {
     switch (statusCode) {
+        case 400: {
+            if (body.includes('reasoning_content')) {
+                return new Error(`推理模型请求格式错误: reasoning_content 必须回传 (HTTP ${statusCode})`);
+            }
+            return new Error(`请求参数错误: ${body} (HTTP ${statusCode})`);
+        }
         case 401:
             return new Error(`认证失败: API Key 无效或已过期，请检查配置 (HTTP ${statusCode})`);
         case 403:
@@ -91,6 +113,7 @@ class OpenAIProvider extends base_1.LLMProviderBase {
                     return;
                 }
                 let fullContent = '';
+                let fullReasoningContent = '';
                 const toolCallsMap = new Map();
                 let usage = undefined;
                 let buffer = '';
@@ -113,6 +136,9 @@ class OpenAIProvider extends base_1.LLMProviderBase {
                             if (parsed.usage)
                                 usage = parsed.usage;
                             const delta = choice.delta;
+                            if (delta.reasoning_content) {
+                                fullReasoningContent += delta.reasoning_content;
+                            }
                             if (delta.content) {
                                 fullContent += delta.content;
                                 callbacks.onContent(delta.content);
@@ -149,7 +175,10 @@ class OpenAIProvider extends base_1.LLMProviderBase {
                 res.on('end', () => {
                     callbacks.onDone();
                     const toolCalls = Array.from(toolCallsMap.values());
-                    const message = { role: 'assistant', content: fullContent };
+                    const message = { role: 'assistant', content: fullContent || null };
+                    if (fullReasoningContent) {
+                        message.reasoning_content = fullReasoningContent;
+                    }
                     if (toolCalls.length > 0)
                         message.tool_calls = toolCalls;
                     resolve({ message, usage });
@@ -182,7 +211,16 @@ class OpenAIProvider extends base_1.LLMProviderBase {
                     }
                     try {
                         const parsed = JSON.parse(data);
-                        resolve({ message: parsed.choices[0].message, usage: parsed.usage });
+                        const msg = parsed.choices[0].message;
+                        const message = {
+                            role: msg.role || 'assistant',
+                            content: msg.content || null,
+                        };
+                        if (msg.reasoning_content)
+                            message.reasoning_content = msg.reasoning_content;
+                        if (msg.tool_calls)
+                            message.tool_calls = msg.tool_calls;
+                        resolve({ message, usage: parsed.usage });
                     }
                     catch (err) {
                         reject(new Error(`解析 API 响应失败: ${err}`));
