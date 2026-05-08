@@ -16,7 +16,8 @@
     "dist/"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm link",
+    "build:only": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
     "test": "ts-node src/__tests__/safety.test.ts && ts-node src/__tests__/crypto.test.ts && ts-node src/__tests__/session.test.ts && ts-node src/__tests__/env.test.ts",
