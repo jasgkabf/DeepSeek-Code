@@ -60,6 +60,7 @@ export function showBanner(): void {
     console.log(chalk.dim('  ' + t().banner.termuxEnv));
   }
   console.log(chalk.dim('  ' + t().banner.helpHint));
+    console.log(chalk.dim('  ' + t().banner.exitHint));
   console.log();
   console.log(separator());
   console.log();

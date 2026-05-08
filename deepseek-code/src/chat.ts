@@ -183,7 +183,7 @@ export class Chat {
 
   private showHelp(): void {
     console.log();
-    showInfo(`${brand()} 可用命令:`);
+    showInfo(`${brand()} 可用命令 (启动: deepseek-code / ds-code / dscode):`);
     console.log();
     console.log(chalk.bold('  💬 聊天管理'));
     console.log('  /new               - 开始新聊天（旧聊天自动保存）');

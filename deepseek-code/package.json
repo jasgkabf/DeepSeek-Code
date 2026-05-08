@@ -4,7 +4,13 @@
   "description": "DeepSeek Code - 命令行 AI 编程助手",
   "main": "dist/index.js",
   "bin": {
-    "deepseek-code": "dist/index.js"
+    "deepseek-code": "dist/index.js",
+    "DeepSeek-Code": "dist/index.js",
+    "DEEPSEEK-CODE": "dist/index.js",
+    "ds-code": "dist/index.js",
+    "DS-Code": "dist/index.js",
+    "dscode": "dist/index.js",
+    "DSCode": "dist/index.js"
   },
   "files": [
     "dist/"

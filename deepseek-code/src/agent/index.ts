@@ -1,12 +1,13 @@
 import { ChatMessage, DeepSeekCodeConfig, ToolDefinition, ToolResult } from '../types';
 import { chatCompletionStream, ChatCompletionResult, StreamCallbacks } from '../api/client';
 import { TOOL_DEFINITIONS, buildToolResults, setToolConfig } from './tools';
-import { showAssistantPrefix, showDivider, showError } from '../ui/display';
+import { showAssistantPrefix, showDivider, showError, showInfo } from '../ui/display';
 import { detectEnvironment } from '../env';
 import { getSkillToolDefinitions, loadAllSkills } from '../skills/loader';
 import { listInstalledSkills } from '../skills/manager';
+import { t } from '../i18n';
 
-const MAX_AGENT_ITERATIONS = 10;
+const MAX_AGENT_ITERATIONS = 999;
 
 function buildSystemPrompt(): ChatMessage {
   const env = detectEnvironment();
@@ -40,12 +41,16 @@ function buildSystemPrompt(): ChatMessage {
 - copy_to_clipboard: 将文本复制到系统剪贴板
 
 工作原则：
-1. 先理解用户需求，再选择合适的工具
-2. 修改代码前先读取文件了解现有内容
-3. 执行命令前确认安全性
-4. 给出清晰的解释和操作步骤
-5. 遇到错误时分析原因并提供解决方案
-6. 生成的代码可使用 copy_to_clipboard 工具方便用户复制
+1. 自主行动：尽可能自主完成任务，不要每一步都问用户。先分析问题，制定计划，然后直接执行
+2. 连续执行：遇到错误不要停下来，分析原因后继续尝试修复，直到问题解决
+3. 只在必要时提问：只有在遇到以下情况才向用户提问：
+   - 需要用户提供关键信息（如项目名称、API 地址等）且无法从上下文推断
+   - 多种方案差异很大，需要用户做决策
+   - 涉及不可逆操作（如删除重要文件、发布到生产环境）
+4. 修改代码前先读取文件了解现有内容
+5. 遇到错误时：先分析错误信息，尝试自行修复，修复后验证结果
+6. 执行命令后：检查输出，如果失败则分析原因并重试
+7. 完成任务后：简要总结做了什么，不要重复输出大段代码
 
 请用中文回复用户，代码注释使用英文。${envNote}${skillNote}`,
   };
@@ -122,7 +127,7 @@ export async function runAgent(options: AgentRunOptions): Promise<ChatMessage[]>
   }
 
   if (iteration >= MAX_AGENT_ITERATIONS) {
-    showError('已达到最大 Agent 迭代次数');
+    showInfo(t().agent.maxIterations);
   }
 
   return newMessages;

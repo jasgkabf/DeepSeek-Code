@@ -207,7 +207,7 @@ class Chat {
     }
     showHelp() {
         console.log();
-        (0, display_1.showInfo)(`${(0, display_1.brand)()} 可用命令:`);
+        (0, display_1.showInfo)(`${(0, display_1.brand)()} 可用命令 (启动: deepseek-code / ds-code / dscode):`);
         console.log();
         console.log(chalk_1.default.bold('  💬 聊天管理'));
         console.log('  /new               - 开始新聊天（旧聊天自动保存）');

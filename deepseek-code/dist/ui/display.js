@@ -110,6 +110,7 @@ function showBanner() {
         console.log(chalk_1.default.dim('  ' + (0, i18n_1.t)().banner.termuxEnv));
     }
     console.log(chalk_1.default.dim('  ' + (0, i18n_1.t)().banner.helpHint));
+    console.log(chalk_1.default.dim('  ' + (0, i18n_1.t)().banner.exitHint));
     console.log();
     console.log(separator());
     console.log();
