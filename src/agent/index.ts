@@ -3,71 +3,83 @@ import { chatCompletionStream, ChatCompletionResult, StreamCallbacks } from '../
 import { TOOL_DEFINITIONS, buildToolResults, setToolConfig } from './tools';
 import { showAssistantPrefix, showDivider, showError, showInfo, showWarning } from '../ui/display';
 import { detectEnvironment } from '../env';
-import { getSkillToolDefinitions, loadAllSkills, buildBuiltinSkillsPrompt, listBuiltinSkillNames } from '../skills/loader';
+import { getSkillToolDefinitions, loadAllSkills, listBuiltinSkillNames } from '../skills/loader';
 import { listInstalledSkills } from '../skills/manager';
 import { buildMemoryPrompt } from '../memory';
 import { t } from '../i18n';
 
 const MAX_AGENT_ITERATIONS = 50;
 
-interface ToolCallSignature {
+interface ToolCallRecord {
   name: string;
-  argsHash: string;
-  iteration: number;
+  argsKey: string;
+  result: string;
 }
 
-function hashArgs(argsStr: string): string {
-  let hash = 0;
-  for (let i = 0; i < argsStr.length; i++) {
-    const char = argsStr.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash |= 0;
+function makeArgsKey(name: string, argsStr: string): string {
+  try {
+    const args = JSON.parse(argsStr);
+    if (name === 'read_file' || name === 'list_directory') {
+      return `${name}:${args.path || ''}`;
+    }
+    if (name === 'write_file' || name === 'append_file') {
+      return `${name}:${args.path || ''}`;
+    }
+    if (name === 'edit_file') {
+      return `${name}:${args.path || ''}:${(args.old_text || '').substring(0, 50)}`;
+    }
+    if (name === 'run_command') {
+      return `${name}:${(args.command || '').trim()}`;
+    }
+    return `${name}:${argsStr}`;
+  } catch {
+    return `${name}:${argsStr}`;
   }
-  return hash.toString(36);
 }
 
 function buildSystemPrompt(): ChatMessage {
   const env = detectEnvironment();
   let envNote = '';
   if (env.isTermux) {
-    envNote = `\n\n[Termux环境] 用pkg代替apt, 存储需termux-setup-storage, 屏幕窄注意行宽`;
+    envNote = `\n[Termux] 用pkg代替apt, 存储需termux-setup-storage`;
   }
 
   const skills = listInstalledSkills();
   let skillNote = '';
   if (skills.length > 0) {
     const skillList = skills.map((s) => `${s.name}(${s.toolCount}工具)`).join(', ');
-    skillNote = `\n\n[已安装Skills] ${skillList}`;
+    skillNote = `\n[已安装Skills] ${skillList}`;
   }
 
-  const builtinSkillsPrompt = buildBuiltinSkillsPrompt();
+  const builtinNames = listBuiltinSkillNames();
+  let builtinNote = '';
+  if (builtinNames.length > 0) {
+    builtinNote = `\n[内置Skills] ${builtinNames.join(', ')} (需要时用read_file读取skills-builtin/<名称>/SKILL.md)`;
+  }
+
   const memoryPrompt = buildMemoryPrompt();
 
   return {
     role: 'system',
-    content: `你是 DeepSeek Code 编程助手。自主执行任务，尽量不提问。
+    content: `你是 DeepSeek Code 编程助手。自主执行，尽量不提问。
 
-【核心原则】
-1. 每个操作只执行一次，绝不重复调用相同工具做相同的事
-2. 读完文件后直接修改，不要反复读同一文件
-3. 命令执行成功后不要再次执行验证
-4. 任务完成后立即停止，输出简要总结，不再做额外操作
-5. 遇到错误分析原因后修复，不要反复尝试同一方法
-6. 能独立解决绝不提问，只有涉及重大决策或不可逆操作时才请示
+【绝对禁止 - 重复操作】
+- 同一个工具+同一个参数在整个对话中只能调用一次，系统会自动拦截重复调用
+- 命令无输出说明没找到结果，换个方法，不要重试同一命令
+- 文件已写入成功就不要再写一次
+- 任务完成后立即回复用户总结，不要做额外验证
 
 【工具】
-- read_file: 读文件 | list_directory: 列目录
-- write_file: 写文件 | append_file: 追加内容 | edit_file: 局部替换
-- run_command: 执行Shell命令 | copy_to_clipboard: 复制到剪贴板
+read_file | list_directory | write_file | append_file | edit_file | run_command | copy_to_clipboard
 
-【防重复规则 - 必须遵守】
-- 已读取过的文件不要再次读取（除非文件被修改过）
-- 已执行成功的命令不要再次执行
-- 已写入的文件不要再次写入相同内容
-- 完成任务后直接回复用户，不要做额外验证步骤
-- 一次任务尽量在3-5轮工具调用内完成
+【执行原则】
+1. 先分析再动手，一次做对
+2. 读完文件直接改，不要反复读
+3. 命令失败就换方法，不要重试
+4. 能独立解决不提问，重大决策才请示
+5. 3-5轮内完成任务
 
-用中文回复，代码注释用英文。${envNote}${skillNote}${builtinSkillsPrompt}${memoryPrompt}`,
+用中文回复，代码注释英文。${envNote}${skillNote}${builtinNote}${memoryPrompt}`,
   };
 }
 
@@ -80,25 +92,40 @@ function getAllToolDefinitions(): ToolDefinition[] {
 function isDuplicateCall(
   name: string,
   argsStr: string,
-  history: ToolCallSignature[],
-  currentIteration: number
-): boolean {
-  const hash = hashArgs(argsStr);
-  const recentCalls = history.filter(
-    (s) => currentIteration - s.iteration <= 2
-  );
-  return recentCalls.some((s) => s.name === name && s.argsHash === hash);
+  executedCalls: ToolCallRecord[]
+): ToolCallRecord | null {
+  const key = makeArgsKey(name, argsStr);
+  return executedCalls.find((r) => r.argsKey === key) || null;
 }
 
-function detectLoop(history: ToolCallSignature[], currentIteration: number): boolean {
-  if (history.length < 3) return false;
-  const recent = history.slice(-3);
-  if (recent.length < 3) return false;
-  const sameName = recent.every((s) => s.name === recent[0].name);
-  if (sameName) return true;
-  const allSame = recent[0].name === recent[1].name && recent[0].argsHash === recent[1].argsHash;
-  const lastTwoSame = recent[1].name === recent[2].name && recent[1].argsHash === recent[2].argsHash;
-  return allSame || lastTwoSame;
+function isSimilarCommand(
+  newCmd: string,
+  oldCmd: string
+): boolean {
+  const normalize = (c: string) => c.replace(/\s+/g, ' ').replace(/['"]/g, '"').trim();
+  return normalize(newCmd) === normalize(oldCmd);
+}
+
+function detectLoop(executedCalls: ToolCallRecord[]): boolean {
+  const len = executedCalls.length;
+  if (len < 3) return false;
+  const last3 = executedCalls.slice(-3);
+  const sameTool = last3.every((s) => s.name === last3[0].name);
+  if (sameTool) {
+    if (last3[0].name === 'run_command') {
+      const cmd0 = last3[0].argsKey.replace('run_command:', '');
+      const cmd1 = last3[1].argsKey.replace('run_command:', '');
+      const cmd2 = last3[2].argsKey.replace('run_command:', '');
+      if (isSimilarCommand(cmd0, cmd1) || isSimilarCommand(cmd1, cmd2)) return true;
+    } else {
+      return true;
+    }
+  }
+  if (len >= 2) {
+    const last2 = executedCalls.slice(-2);
+    if (last2[0].argsKey === last2[1].argsKey) return true;
+  }
+  return false;
 }
 
 function deduplicateToolCalls(
@@ -106,11 +133,32 @@ function deduplicateToolCalls(
 ): Array<{ id: string; function: { name: string; arguments: string } }> {
   const seen = new Set<string>();
   return toolCalls.filter((tc) => {
-    const key = `${tc.function.name}:${tc.function.arguments}`;
+    const key = makeArgsKey(tc.function.name, tc.function.arguments);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
+}
+
+function enhanceToolResult(name: string, argsStr: string, result: string, executedCalls: ToolCallRecord[]): string {
+  let enhanced = result;
+
+  if (name === 'run_command') {
+    if (result === '(命令执行完成，无输出)' || result.trim() === '') {
+      enhanced = result + '\n[提示] 命令无输出，说明没有匹配结果。请换一种方法，不要重复执行相同或类似命令。';
+    }
+  }
+
+  if (name === 'read_file' || name === 'list_directory') {
+    const prevCalls = executedCalls.filter(
+      (c) => c.name === name && c.result === result && c.argsKey !== makeArgsKey(name, argsStr)
+    );
+    if (prevCalls.length > 0 && result === prevCalls[prevCalls.length - 1].result) {
+      enhanced = result + '\n[提示] 这个文件/目录你刚才已经读过了，内容没有变化。请直接基于已有内容操作，不要再次读取。';
+    }
+  }
+
+  return enhanced;
 }
 
 export interface AgentRunOptions {
@@ -129,7 +177,8 @@ export async function runAgent(options: AgentRunOptions): Promise<ChatMessage[]>
   const newMessages: ChatMessage[] = [];
   const allTools = getAllToolDefinitions();
   let iteration = 0;
-  const callHistory: ToolCallSignature[] = [];
+  const executedCalls: ToolCallRecord[] = [];
+  let consecutiveSkips = 0;
 
   while (iteration < MAX_AGENT_ITERATIONS) {
     iteration++;
@@ -167,35 +216,44 @@ export async function runAgent(options: AgentRunOptions): Promise<ChatMessage[]>
     const dedupedCalls = deduplicateToolCalls(assistantMessage.tool_calls);
     if (dedupedCalls.length < assistantMessage.tool_calls.length) {
       const removed = assistantMessage.tool_calls.length - dedupedCalls.length;
-      showWarning(`已跳过 ${removed} 个重复工具调用`);
+      showWarning(`已跳过 ${removed} 个本轮重复调用`);
     }
 
-    const filteredCalls = dedupedCalls.filter((tc) => {
-      if (isDuplicateCall(tc.function.name, tc.function.arguments, callHistory, iteration)) {
-        showWarning(`跳过重复调用: ${tc.function.name}`);
-        return false;
+    const callsToExecute: Array<{ id: string; function: { name: string; arguments: string } }> = [];
+    const skippedCalls: Array<{ id: string; function: { name: string; arguments: string } }> = [];
+
+    for (const tc of dedupedCalls) {
+      const prev = isDuplicateCall(tc.function.name, tc.function.arguments, executedCalls);
+      if (prev) {
+        skippedCalls.push(tc);
+        showWarning(`跳过重复: ${tc.function.name} (已执行过)`);
+      } else {
+        callsToExecute.push(tc);
       }
-      return true;
-    });
+    }
 
-    if (filteredCalls.length === 0) {
-      allMessages.push({
-        role: 'tool',
-        content: '所有工具调用均为重复操作，已自动跳过。请直接回复用户，不要再调用工具。',
-        tool_call_id: dedupedCalls[0]?.id || 'skip',
-      } as ChatMessage);
-      newMessages.push({
-        role: 'tool',
-        content: '所有工具调用均为重复操作，已自动跳过。请直接回复用户，不要再调用工具。',
-        tool_call_id: dedupedCalls[0]?.id || 'skip',
-      } as ChatMessage);
+    const toolResultMessages: ChatMessage[] = [];
 
-      for (const tc of dedupedCalls) {
-        callHistory.push({
-          name: tc.function.name,
-          argsHash: hashArgs(tc.function.arguments),
-          iteration,
-        });
+    for (const tc of skippedCalls) {
+      const prev = isDuplicateCall(tc.function.name, tc.function.arguments, executedCalls);
+      const skipMsg = `此操作已在之前执行过，结果为:\n${(prev?.result || '').substring(0, 300)}\n\n[系统] 请勿重复执行相同操作，直接基于已有结果继续，或换一种方法。`;
+      toolResultMessages.push({
+        role: 'tool',
+        content: skipMsg,
+        tool_call_id: tc.id,
+      } as ChatMessage);
+    }
+
+    if (callsToExecute.length === 0) {
+      consecutiveSkips++;
+      for (const msg of toolResultMessages) {
+        allMessages.push(msg);
+        newMessages.push(msg);
+      }
+
+      if (consecutiveSkips >= 2) {
+        showWarning('连续多次重复调用，强制终止');
+        break;
       }
 
       showDivider();
@@ -203,15 +261,17 @@ export async function runAgent(options: AgentRunOptions): Promise<ChatMessage[]>
       continue;
     }
 
-    for (const tc of filteredCalls) {
-      callHistory.push({
+    consecutiveSkips = 0;
+
+    for (const tc of callsToExecute) {
+      executedCalls.push({
         name: tc.function.name,
-        argsHash: hashArgs(tc.function.arguments),
-        iteration,
+        argsKey: makeArgsKey(tc.function.name, tc.function.arguments),
+        result: '',
       });
     }
 
-    if (detectLoop(callHistory, iteration)) {
+    if (detectLoop(executedCalls)) {
       showWarning('检测到工具调用循环，自动终止');
       break;
     }
@@ -219,11 +279,30 @@ export async function runAgent(options: AgentRunOptions): Promise<ChatMessage[]>
     console.log();
     showDivider();
 
-    const toolResults = await buildToolResults(filteredCalls);
+    const toolResults = await buildToolResults(callsToExecute);
 
-    for (const tr of toolResults) {
-      allMessages.push(tr as ChatMessage);
-      newMessages.push(tr as ChatMessage);
+    for (let i = 0; i < toolResults.length; i++) {
+      const tr = toolResults[i];
+      const tc = callsToExecute[i];
+      const enhancedContent = enhanceToolResult(tc.function.name, tc.function.arguments, tr.content, executedCalls);
+
+      const recordIdx = executedCalls.length - callsToExecute.length + i;
+      if (recordIdx >= 0 && recordIdx < executedCalls.length) {
+        executedCalls[recordIdx].result = tr.content.substring(0, 500);
+      }
+
+      const msg: ChatMessage = {
+        role: 'tool',
+        content: enhancedContent,
+        tool_call_id: tr.tool_call_id,
+      } as ChatMessage;
+
+      toolResultMessages.push(msg);
+    }
+
+    for (const msg of toolResultMessages) {
+      allMessages.push(msg);
+      newMessages.push(msg);
     }
 
     showDivider();
