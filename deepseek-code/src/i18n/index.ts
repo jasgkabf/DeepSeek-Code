@@ -181,6 +181,27 @@ export interface Translations {
     unknownKey: string;
     configurableKeys: string;
   };
+  uninstall: {
+    title: string;
+    warning: string;
+    confirm: string;
+    confirmType: string;
+    removingConfig: string;
+    removingSessions: string;
+    removingSkills: string;
+    removingGlobalLink: string;
+    removingProject: string;
+    success: string;
+    cancelled: string;
+    confirmMismatch: string;
+    configRemoved: string;
+    sessionsRemoved: string;
+    skillsRemoved: string;
+    globalLinkRemoved: string;
+    projectRemoved: string;
+    notInstalled: string;
+    hint: string;
+  };
 }
 
 const zh: Translations = {
@@ -364,6 +385,27 @@ const zh: Translations = {
     unknownKey: '未知的配置项',
     configurableKeys: '可配置项',
   },
+  uninstall: {
+    title: '🗑 完全卸载 DeepSeek Code',
+    warning: '⚠️  此操作将删除所有配置、会话记录、已安装的 Skills 和全局命令，不可恢复！',
+    confirm: '请输入 "uninstall" 确认完全卸载',
+    confirmType: 'uninstall',
+    removingConfig: '正在删除配置文件...',
+    removingSessions: '正在删除会话记录...',
+    removingSkills: '正在删除已安装的 Skills...',
+    removingGlobalLink: '正在移除全局命令...',
+    removingProject: '正在删除项目文件...',
+    success: 'DeepSeek Code 已完全卸载，再见！',
+    cancelled: '卸载已取消',
+    confirmMismatch: '输入不匹配，卸载已取消',
+    configRemoved: '已删除配置目录: {path}',
+    sessionsRemoved: '已删除 {count} 个会话文件',
+    skillsRemoved: '已删除 {count} 个 Skill',
+    globalLinkRemoved: '已移除全局命令 deepseek-code',
+    projectRemoved: '已删除项目目录: {path}',
+    notInstalled: '全局命令未安装（非 npm link 安装）',
+    hint: '你也可以手动删除项目文件夹来完成卸载',
+  },
 };
 
 const en: Translations = {
@@ -546,6 +588,27 @@ const en: Translations = {
     updated: 'Config updated',
     unknownKey: 'Unknown config key',
     configurableKeys: 'Configurable keys',
+  },
+  uninstall: {
+    title: '🗑 Uninstall DeepSeek Code Completely',
+    warning: '⚠️  This will remove all config, sessions, installed Skills, and the global command. This cannot be undone!',
+    confirm: 'Type "uninstall" to confirm complete uninstall',
+    confirmType: 'uninstall',
+    removingConfig: 'Removing config files...',
+    removingSessions: 'Removing session files...',
+    removingSkills: 'Removing installed Skills...',
+    removingGlobalLink: 'Removing global command...',
+    removingProject: 'Removing project files...',
+    success: 'DeepSeek Code has been completely uninstalled. Goodbye!',
+    cancelled: 'Uninstall cancelled',
+    confirmMismatch: 'Input mismatch, uninstall cancelled',
+    configRemoved: 'Removed config directory: {path}',
+    sessionsRemoved: 'Removed {count} session files',
+    skillsRemoved: 'Removed {count} Skill(s)',
+    globalLinkRemoved: 'Removed global command deepseek-code',
+    projectRemoved: 'Removed project directory: {path}',
+    notInstalled: 'Global command not installed (not linked via npm link)',
+    hint: 'You can also manually delete the project folder to complete uninstall',
   },
 };
 

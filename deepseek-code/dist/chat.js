@@ -45,6 +45,7 @@ const display_1 = require("./ui/display");
 const config_1 = require("./config");
 const manager_1 = require("./skills/manager");
 const loader_1 = require("./skills/loader");
+const uninstall_1 = require("./uninstall");
 class Chat {
     constructor(config) {
         this.running = false;
@@ -185,6 +186,21 @@ class Chat {
                 this.rl.close();
                 process.exit(0);
                 break;
+            case '/uninstall': {
+                const removeProject = parts.length > 1 && (parts[1] === '--all' || parts[1] === '-a');
+                const result = await (0, uninstall_1.performUninstall)(removeProject);
+                if (result.success) {
+                    console.log();
+                    (0, display_1.showSuccess)(result.message);
+                    this.running = false;
+                    this.rl.close();
+                    process.exit(0);
+                }
+                else {
+                    (0, display_1.showInfo)(result.message);
+                }
+                break;
+            }
             default:
                 (0, display_1.showWarning)(`未知命令: ${command}，输入 /help 查看帮助`);
         }
@@ -206,6 +222,7 @@ class Chat {
         console.log();
         console.log(chalk_1.default.bold('  📁 其他'));
         console.log('  /cd [path]         - 查看/切换项目目录');
+        console.log('  /uninstall         - 完全卸载 DeepSeek Code（删除所有数据）');
         console.log('  /exit              - 退出 DeepSeek Code');
         console.log();
         console.log(chalk_1.default.bold('  🔌 Skills (扩展工具)'));

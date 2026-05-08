@@ -13,7 +13,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
-    "test": "ts-node src/__tests__/safety.test.ts && ts-node src/__tests__/crypto.test.ts && ts-node src/__tests__/session.test.ts && ts-node src/__tests__/env.test.ts"
+    "test": "ts-node src/__tests__/safety.test.ts && ts-node src/__tests__/crypto.test.ts && ts-node src/__tests__/session.test.ts && ts-node src/__tests__/env.test.ts",
+    "uninstall": "node -e \"const {performUninstall}=require('./dist/uninstall');const{setLanguage}=require('./dist/i18n');setLanguage('zh');performUninstall(true).then(r=>{console.log(r.message);if(r.success)process.exit(0);else process.exit(1);})\""
   },
   "keywords": ["ai", "cli", "coding-assistant", "deepseek"],
   "author": "",

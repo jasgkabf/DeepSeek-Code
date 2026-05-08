@@ -36,6 +36,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ensureConfigDir = ensureConfigDir;
 exports.loadConfig = loadConfig;
 exports.saveConfig = saveConfig;
+exports.initLanguage = initLanguage;
 exports.isConfigured = isConfigured;
 exports.setupWizard = setupWizard;
 exports.switchModelWizard = switchModelWizard;
@@ -47,6 +48,7 @@ const os = __importStar(require("os"));
 const types_1 = require("./types");
 const crypto_1 = require("./crypto");
 const display_1 = require("./ui/display");
+const i18n_1 = require("./i18n");
 const CONFIG_DIR = path.join(os.homedir(), '.deepseek-code');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 const PRESETS = [
@@ -88,6 +90,9 @@ function saveConfig(config) {
     }
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(toSave, null, 2), 'utf-8');
 }
+function initLanguage(config) {
+    (0, i18n_1.setLanguage)(config.language || 'zh');
+}
 function isConfigured(config) {
     return config.apiKey.length > 0;
 }
@@ -100,20 +105,27 @@ function showPresets() {
     console.log();
 }
 async function setupWizard() {
-    (0, display_1.showInfo)('首次使用 DeepSeek Code，请配置 API 信息');
     console.log();
-    const config = await runModelSetup({ ...types_1.DEFAULT_CONFIG, projectDir: process.cwd() });
+    console.log('  1. 中文');
+    console.log('  2. English');
+    console.log();
+    const langChoice = await (0, display_1.askInput)('请选择语言 / Select language (1-2)');
+    const lang = langChoice === '2' ? 'en' : 'zh';
+    (0, i18n_1.setLanguage)(lang);
+    (0, display_1.showInfo)((0, i18n_1.t)().setup.firstTime);
+    console.log();
+    const config = await runModelSetup({ ...types_1.DEFAULT_CONFIG, projectDir: process.cwd(), language: lang });
     saveConfig(config);
-    (0, display_1.showSuccess)('配置已保存到 ' + CONFIG_FILE);
+    (0, display_1.showSuccess)((0, i18n_1.template)((0, i18n_1.t)().setup.configSaved, { path: CONFIG_FILE }));
     console.log();
     return config;
 }
 async function switchModelWizard(config) {
-    (0, display_1.showInfo)('当前模型: ' + config.model + ' (' + config.apiBase + ')');
+    (0, display_1.showInfo)((0, i18n_1.template)((0, i18n_1.t)().setup.currentModel, { model: config.model, url: config.apiBase }));
     console.log();
     const newConfig = await runModelSetup(config);
     saveConfig(newConfig);
-    (0, display_1.showSuccess)('模型切换成功！当前模型: ' + newConfig.model);
+    (0, display_1.showSuccess)((0, i18n_1.template)((0, i18n_1.t)().setup.switchSuccess, { model: newConfig.model }));
     console.log();
     return newConfig;
 }
@@ -214,6 +226,10 @@ function setConfigValue(config, key, value) {
         projectDir: (c, v) => { c.projectDir = v; },
         maxContextTokens: (c, v) => { const n = parseInt(v); if (!isNaN(n))
             c.maxContextTokens = n; },
+        language: (c, v) => { if (v === 'zh' || v === 'en') {
+            c.language = v;
+            (0, i18n_1.setLanguage)(v);
+        } },
     };
     const setter = validKeys[key];
     if (!setter) {

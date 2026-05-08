@@ -2,6 +2,7 @@ import { DeepSeekCodeConfig } from './types';
 export declare function ensureConfigDir(): void;
 export declare function loadConfig(): DeepSeekCodeConfig;
 export declare function saveConfig(config: DeepSeekCodeConfig): void;
+export declare function initLanguage(config: DeepSeekCodeConfig): void;
 export declare function isConfigured(config: DeepSeekCodeConfig): boolean;
 export declare function setupWizard(): Promise<DeepSeekCodeConfig>;
 export declare function switchModelWizard(config: DeepSeekCodeConfig): Promise<DeepSeekCodeConfig>;

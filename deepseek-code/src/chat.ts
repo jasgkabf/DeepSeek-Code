@@ -7,6 +7,7 @@ import { showUserPrefix, showAssistantPrefix, showDivider, showInfo, showSuccess
 import { showConfig, setConfigValue, switchModelWizard } from './config';
 import { listInstalledSkills, installFromUrl, installFromFolder, removeSkill } from './skills/manager';
 import { clearLoadedSkills } from './skills/loader';
+import { performUninstall } from './uninstall';
 
 export class Chat {
   private config: DeepSeekCodeConfig;
@@ -161,6 +162,20 @@ export class Chat {
         this.rl.close();
         process.exit(0);
         break;
+      case '/uninstall': {
+        const removeProject = parts.length > 1 && (parts[1] === '--all' || parts[1] === '-a');
+        const result = await performUninstall(removeProject);
+        if (result.success) {
+          console.log();
+          showSuccess(result.message);
+          this.running = false;
+          this.rl.close();
+          process.exit(0);
+        } else {
+          showInfo(result.message);
+        }
+        break;
+      }
       default:
         showWarning(`未知命令: ${command}，输入 /help 查看帮助`);
     }
@@ -183,6 +198,7 @@ export class Chat {
     console.log();
     console.log(chalk.bold('  📁 其他'));
     console.log('  /cd [path]         - 查看/切换项目目录');
+    console.log('  /uninstall         - 完全卸载 DeepSeek Code（删除所有数据）');
     console.log('  /exit              - 退出 DeepSeek Code');
     console.log();
     console.log(chalk.bold('  🔌 Skills (扩展工具)'));

@@ -14,5 +14,6 @@ exports.DEFAULT_CONFIG = {
     provider: 'openai',
     projectDir: '',
     maxContextTokens: 32000,
+    language: 'zh',
 };
 //# sourceMappingURL=types.js.map

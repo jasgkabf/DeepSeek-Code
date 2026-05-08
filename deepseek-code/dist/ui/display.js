@@ -59,6 +59,7 @@ exports.askInput = askInput;
 const chalk_1 = __importDefault(require("chalk"));
 const readline = __importStar(require("readline"));
 const env_1 = require("../env");
+const i18n_1 = require("../i18n");
 const BRAND = chalk_1.default.cyan.bold('DeepSeek Code');
 const BRAND_SHORT = chalk_1.default.cyan.bold('DS');
 function getTerminalWidth() {
@@ -104,11 +105,11 @@ function showBanner() {
         console.log(line);
     }
     console.log();
-    console.log(chalk_1.default.dim('  对标 Claude Code / Codex 的命令行 AI 编程助手'));
+    console.log(chalk_1.default.dim('  ' + (0, i18n_1.t)().banner.subtitle));
     if (env.isTermux) {
-        console.log(chalk_1.default.dim('  运行环境: Termux (Android)'));
+        console.log(chalk_1.default.dim('  ' + (0, i18n_1.t)().banner.termuxEnv));
     }
-    console.log(chalk_1.default.dim('  输入 /help 查看帮助，/exit 退出'));
+    console.log(chalk_1.default.dim('  ' + (0, i18n_1.t)().banner.helpHint));
     console.log();
     console.log(separator());
     console.log();
