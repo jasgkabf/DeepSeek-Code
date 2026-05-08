@@ -248,38 +248,36 @@ export function buildMemoryPrompt(): string {
     return '';
   }
 
-  let prompt = '\n\n【自我进化记忆系统】';
+  let prompt = '\n\n[进化记忆]';
 
   const topExperiences = experiences
     .filter((e) => e.weight >= 0.3)
     .sort((a, b) => b.weight - a.weight)
-    .slice(0, 10);
+    .slice(0, 5);
 
   if (topExperiences.length > 0) {
-    prompt += '\n\n历史最优经验（优先参考，避免重复犯错）：';
+    prompt += ' 经验:';
     for (const exp of topExperiences) {
-      prompt += `\n- [${exp.category}] ${exp.task}: ${exp.lessons} | 最优流程: ${exp.optimalFlow}`;
+      prompt += `\n- [${exp.category}] ${exp.lessons} → ${exp.optimalFlow}`;
     }
   }
 
   const topHabits = habits
     .sort((a, b) => b.frequency - a.frequency)
-    .slice(0, 10);
+    .slice(0, 5);
 
   if (topHabits.length > 0) {
-    prompt += '\n\n用户习惯模板（自动学习，适配用户偏好）：';
+    prompt += ' 用户习惯:';
     for (const habit of topHabits) {
-      prompt += `\n- ${habit.pattern} (频次: ${habit.frequency})`;
+      prompt += ` ${habit.pattern}(${habit.frequency}次)`;
     }
   }
 
-  const recentReviews = reviews.slice(0, 3);
+  const recentReviews = reviews.slice(0, 2);
   if (recentReviews.length > 0) {
-    prompt += '\n\n近期复盘结论（已沉淀为经验）：';
+    prompt += ' 近期复盘:';
     for (const review of recentReviews) {
-      prompt += `\n- 目标: ${review.taskGoal.substring(0, 50)}`;
-      prompt += `\n  关键经验: ${review.keyExperience}`;
-      prompt += `\n  最优流程: ${review.optimalFlow}`;
+      prompt += ` ${review.keyExperience.substring(0, 60)}`;
     }
   }
 

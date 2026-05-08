@@ -65,9 +65,10 @@ export function buildBuiltinSkillsPrompt(): string {
   const skills = loadBuiltinSkills();
   if (skills.length === 0) return '';
 
-  let prompt = '\n\n内置知识型 Skills（以下为专业领域的指导原则，请根据用户需求自动应用）：\n';
+  let prompt = '\n\n[内置Skills] 可用领域知识（按需参考）：';
   for (const skill of skills) {
-    prompt += `\n--- ${skill.name} ---\n${skill.description}\n指导原则:\n${skill.instructions.substring(0, 2000)}${skill.instructions.length > 2000 ? '\n...(内容过长已截断)' : ''}\n`;
+    const shortDesc = skill.instructions.substring(0, 500);
+    prompt += `\n- ${skill.name}: ${skill.description}${shortDesc ? ' | ' + shortDesc + (skill.instructions.length > 500 ? '...' : '') : ''}`;
   }
   return prompt;
 }
