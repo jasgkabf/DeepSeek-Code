@@ -17,6 +17,7 @@ export declare class Chat {
     private handleUserMessage;
     stop(): void;
     private showSkills;
+    private showMemory;
     private handleSkillCommand;
 }
 //# sourceMappingURL=chat.d.ts.map

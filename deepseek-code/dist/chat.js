@@ -46,6 +46,9 @@ const config_1 = require("./config");
 const manager_1 = require("./skills/manager");
 const loader_1 = require("./skills/loader");
 const uninstall_1 = require("./uninstall");
+const memory_1 = require("./memory");
+const review_1 = require("./review");
+const purification_1 = require("./purification");
 class Chat {
     constructor(config) {
         this.running = false;
@@ -168,6 +171,9 @@ class Chat {
             case '/skills':
                 this.showSkills();
                 break;
+            case '/memory':
+                this.showMemory();
+                break;
             case '/skill': {
                 if (parts.length < 2) {
                     (0, display_1.showWarning)('用法: /skill install <网址或路径> | /skill remove <名称>');
@@ -230,6 +236,9 @@ class Chat {
         console.log('  /skill install <网址>  - 从网址安装 Skill');
         console.log('  /skill install <路径>  - 从本地文件夹安装 Skill');
         console.log('  /skill remove <名称>   - 删除已安装的 Skill');
+        console.log();
+        console.log(chalk_1.default.bold('  🧠 记忆与进化'));
+        console.log('  /memory            - 查看智能体记忆统计');
         console.log();
         (0, display_1.showInfo)('直接输入自然语言即可与 AI 对话，AI 可调用工具读写文件和执行命令');
         console.log();
@@ -340,6 +349,9 @@ class Chat {
         }
     }
     async handleUserMessage(input) {
+        const habit = (0, memory_1.extractUserHabitFromMessage)(input);
+        if (habit)
+            (0, memory_1.recordUserHabit)(habit);
         const userMessage = {
             role: 'user',
             content: input,
@@ -348,6 +360,8 @@ class Chat {
         this.session = (0, session_1.trimSessionContext)(this.session, this.config.maxContextTokens);
         console.log();
         (0, display_1.showAssistantPrefix)();
+        let toolCallsCount = 0;
+        let hadErrors = false;
         try {
             const newMessages = await (0, agent_1.runAgent)({
                 config: this.config,
@@ -355,9 +369,25 @@ class Chat {
             });
             for (const msg of newMessages) {
                 this.session = (0, session_1.addToSession)(this.session, msg);
+                if (msg.tool_calls)
+                    toolCallsCount += msg.tool_calls.length;
+                if (msg.role === 'tool' && msg.content && typeof msg.content === 'string') {
+                    if (msg.content.includes('error') || msg.content.includes('Error') || msg.content.includes('失败')) {
+                        hadErrors = true;
+                    }
+                }
+            }
+            (0, review_1.performSelfReview)(input, newMessages.filter((m) => m.role === 'assistant' && m.content).map((m) => m.content || ''), toolCallsCount, hadErrors);
+            const purifyResult = (0, purification_1.maybePurify)();
+            if (purifyResult.purified && purifyResult.result) {
+                const r = purifyResult.result;
+                if (r.removed > 0 || r.merged > 0) {
+                    // silent purification, no user output
+                }
             }
         }
         catch (err) {
+            hadErrors = true;
             const msg = err.message || '';
             if (msg.includes('401') || msg.includes('认证')) {
                 (0, display_1.showErrorWithSuggestion)(`处理消息时出错: ${msg}`, '请检查 API Key 是否正确，输入 /setup 重新配置');
@@ -405,6 +435,22 @@ class Chat {
             console.log();
         }
         (0, display_1.showInfo)('使用 /skill remove <名称> 删除，AI 可自动使用已安装的 Skill 工具');
+        console.log();
+    }
+    showMemory() {
+        const stats = (0, purification_1.getMemoryStats)();
+        console.log();
+        (0, display_1.showInfo)('🧠 智能体记忆与进化系统');
+        console.log();
+        console.log(`  📊 经验条目: ${chalk_1.default.bold(stats.experienceCount)} 条`);
+        console.log(`  🔄 用户习惯: ${chalk_1.default.bold(stats.habitCount)} 个`);
+        console.log(`  📝 复盘记录: ${chalk_1.default.bold(stats.reviewCount)} 条`);
+        if (stats.topCategories.length > 0) {
+            console.log(`  📂 高频类别: ${stats.topCategories.join(', ')}`);
+        }
+        console.log();
+        (0, display_1.showInfo)('智能体会自动：记录经验 → 自我复盘 → 净化低价值记忆 → 注入系统提示词');
+        (0, display_1.showInfo)('使用越多，智能体越了解你的习惯，执行效率越高');
         console.log();
     }
     async handleSkillCommand(parts) {
