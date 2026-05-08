@@ -17,6 +17,8 @@ export class Chat {
   private session: Session;
   private rl: readline.Interface;
   private running: boolean = false;
+  private pasting: boolean = false;
+  private pasteBuffer: string[] = [];
 
   constructor(config: DeepSeekCodeConfig) {
     this.config = config;
@@ -26,6 +28,54 @@ export class Chat {
       output: process.stdout,
       prompt: chalk.green.bold(' You ❯ '),
     });
+    this.enableBracketPaste();
+  }
+
+  private enableBracketPaste(): void {
+    if (!process.stdin.isTTY) return;
+    process.stdout.write('\x1b[?2004h');
+    process.stdin.on('keypress', (str: string, key: any) => {
+      if (key && key.sequence === '\x1b[200~') {
+        this.pasting = true;
+        this.pasteBuffer = [];
+        return;
+      }
+      if (key && key.sequence === '\x1b[201~') {
+        this.pasting = false;
+        if (this.pasteBuffer.length > 0) {
+          const fullText = this.pasteBuffer.join('\n').trim();
+          this.pasteBuffer = [];
+          if (fullText) {
+            this.rl.pause();
+            if (fullText.startsWith('/')) {
+              this.handleCommand(fullText).then(() => {
+                if (this.running) {
+                  this.rl.resume();
+                  this.rl.prompt();
+                }
+              });
+            } else {
+              this.handleUserMessage(fullText).then(() => {
+                if (this.running) {
+                  this.rl.resume();
+                  this.rl.prompt();
+                }
+              });
+            }
+          }
+        }
+        return;
+      }
+      if (this.pasting) {
+        this.pasteBuffer.push(str || '');
+      }
+    });
+  }
+
+  destroy(): void {
+    if (process.stdin.isTTY) {
+      process.stdout.write('\x1b[?2004l');
+    }
   }
 
   getConfig(): DeepSeekCodeConfig {
@@ -48,6 +98,7 @@ export class Chat {
     this.rl.prompt();
 
     this.rl.on('line', async (line) => {
+      if (this.pasting) return;
       const input = line.trim();
       if (!input) {
         this.rl.prompt();
@@ -66,6 +117,7 @@ export class Chat {
 
     this.rl.on('close', () => {
       if (this.running) {
+        this.destroy();
         saveSession(this.session);
         console.log();
         showInfo(`${brand()} 会话已保存，再见！`);
@@ -399,6 +451,7 @@ export class Chat {
 
   stop(): void {
     this.running = false;
+    this.destroy();
     this.rl.close();
   }
 
