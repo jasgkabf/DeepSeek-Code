@@ -243,6 +243,9 @@ DeepSeek-Code/
 │   ├── config.ts    # Configuration and setup wizard
 │   ├── crypto.ts    # AES-256-CBC encryption
 │   ├── env.ts       # Environment detection (Termux etc.)
+│   ├── memory.ts    # Self-evolution memory system
+│   ├── review.ts    # Self-review after tasks
+│   ├── purification.ts # Auto-purification of memories
 │   ├── session.ts   # Session persistence and context trimming
 │   ├── types.ts     # TypeScript type definitions
 │   └── uninstall.ts # Complete uninstall module
@@ -523,6 +526,9 @@ DeepSeek-Code/
 │   ├── config.ts    # 配置和设置向导
 │   ├── crypto.ts    # AES-256-CBC 加密
 │   ├── env.ts       # 环境检测（Termux 等）
+│   ├── memory.ts    # 自我进化记忆系统
+│   ├── review.ts    # 任务后自我复盘
+│   ├── purification.ts # 记忆自动净化
 │   ├── session.ts   # 会话持久化和上下文裁剪
 │   ├── types.ts     # TypeScript 类型定义
 │   └── uninstall.ts # 完全卸载模块

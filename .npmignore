@@ -1,0 +1,8 @@
+src/
+node_modules/
+tsconfig.json
+skills-builtin/
+*.ts
+*.ts.map
+*.d.ts
+*.d.ts.map
