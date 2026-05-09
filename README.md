@@ -69,14 +69,18 @@ deepseek-code
 #### 🐧 Linux
 
 ```bash
-# 1. Install Node.js
+# 1. Install Node.js (LTS)
 #    Ubuntu/Debian: curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt-get install -y nodejs
 #    Fedora: sudo dnf install nodejs
 #    Arch: sudo pacman -S nodejs npm
 
 # 2. Install Git
+#    Ubuntu/Debian: sudo apt-get install -y git
+#    Fedora: sudo dnf install git
+#    Arch: sudo pacman -S git
 
 # 3. Clone, build, and run
+cd ~                        # Go to your home directory first!
 git clone https://github.com/jasgkabf/DeepSeek-Code.git
 cd DeepSeek-Code
 npm install
@@ -309,14 +313,18 @@ deepseek-code
 #### 🐧 Linux
 
 ```bash
-# 1. 安装 Node.js
+# 1. 安装 Node.js（LTS）
 #    Ubuntu/Debian: curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt-get install -y nodejs
 #    Fedora: sudo dnf install nodejs
 #    Arch: sudo pacman -S nodejs npm
 
 # 2. 安装 Git
+#    Ubuntu/Debian: sudo apt-get install -y git
+#    Fedora: sudo dnf install git
+#    Arch: sudo pacman -S git
 
 # 3. 克隆、构建、运行
+cd ~                        # 先进入你的用户主目录！
 git clone https://github.com/jasgkabf/DeepSeek-Code.git
 cd DeepSeek-Code
 npm install
