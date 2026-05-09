@@ -43,7 +43,7 @@ export async function main(): Promise<void> {
   showSuccess(t().cli.ready);
   console.log();
 
-  const chat = new Chat(config);
+  const chat = await Chat.create(config);
 
   process.on('SIGINT', () => {
     console.log();

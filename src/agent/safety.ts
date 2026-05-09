@@ -1,4 +1,5 @@
 import * as path from 'path';
+import * as fs from 'fs';
 
 const HARD_BLOCK_PATTERNS: RegExp[] = [
   /\brm\s+(-[a-zA-Z]*f[a-zA-Z]*\s+|.*--no-preserve-root.*)\//,
@@ -35,6 +36,17 @@ const PROTECTED_PATHS: string[] = [
   'C:\\Program Files',
 ];
 
+const SENSITIVE_SUFFIXES: string[] = [
+  '.env',
+  '.pem',
+  '.key',
+  '.p12',
+  '.pfx',
+  '.ssh',
+  '.gnupg',
+  '.aws',
+];
+
 const CONFIRM_PATTERNS: RegExp[] = [
   /\brm\s+/,
   /\bgit\s+push/,
@@ -62,13 +74,33 @@ export function isDangerousCommand(command: string, safeMode = true): boolean {
   return false;
 }
 
+export function resolveSafePath(filePath: string): string {
+  let resolved = path.resolve(filePath);
+  try {
+    const real = fs.realpathSync(resolved);
+    resolved = real;
+  } catch { /* file may not exist yet */ }
+
+  if (resolved.includes('..')) {
+    resolved = path.normalize(resolved);
+  }
+
+  return resolved;
+}
+
 export function isProtectedPath(filePath: string): boolean {
-  const resolved = path.resolve(filePath);
+  const resolved = resolveSafePath(filePath);
   return PROTECTED_PATHS.some((p) => resolved.startsWith(p));
 }
 
 export function isWriteToProtectedPath(filePath: string): boolean {
   return isProtectedPath(filePath);
+}
+
+export function isSensitiveFile(filePath: string): boolean {
+  const resolved = resolveSafePath(filePath);
+  const lower = resolved.toLowerCase();
+  return SENSITIVE_SUFFIXES.some((s) => lower.endsWith(s));
 }
 
 export function getDangerReason(command: string): string | null {

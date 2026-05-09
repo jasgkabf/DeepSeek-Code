@@ -7,9 +7,11 @@ export type { Session };
 
 const SESSION_DIR = path.join(os.homedir(), '.deepseek-code', 'sessions');
 
-function ensureSessionDir(): void {
-  if (!fs.existsSync(SESSION_DIR)) {
-    fs.mkdirSync(SESSION_DIR, { recursive: true });
+async function ensureSessionDir(): Promise<void> {
+  try {
+    await fs.promises.access(SESSION_DIR);
+  } catch {
+    await fs.promises.mkdir(SESSION_DIR, { recursive: true });
   }
 }
 
@@ -24,44 +26,54 @@ export function createSession(): Session {
   };
 }
 
-export function saveSession(session: Session): void {
-  ensureSessionDir();
+export async function saveSession(session: Session): Promise<void> {
+  await ensureSessionDir();
   session.updatedAt = new Date().toISOString();
   const filePath = path.join(SESSION_DIR, `${session.id}.json`);
-  fs.writeFileSync(filePath, JSON.stringify(session, null, 2), 'utf-8');
+  await fs.promises.writeFile(filePath, JSON.stringify(session, null, 2), 'utf-8');
 }
 
-export function loadSession(id: string): Session | null {
-  ensureSessionDir();
+export async function loadSession(id: string): Promise<Session | null> {
+  await ensureSessionDir();
   const filePath = path.join(SESSION_DIR, `${id}.json`);
-  if (!fs.existsSync(filePath)) return null;
   try {
-    const raw = fs.readFileSync(filePath, 'utf-8');
+    await fs.promises.access(filePath);
+  } catch {
+    return null;
+  }
+  try {
+    const raw = await fs.promises.readFile(filePath, 'utf-8');
     return JSON.parse(raw);
   } catch {
     return null;
   }
 }
 
-export function deleteSession(id: string): boolean {
-  ensureSessionDir();
+export async function deleteSession(id: string): Promise<boolean> {
+  await ensureSessionDir();
   const filePath = path.join(SESSION_DIR, `${id}.json`);
-  if (!fs.existsSync(filePath)) return false;
   try {
-    fs.unlinkSync(filePath);
+    await fs.promises.access(filePath);
+  } catch {
+    return false;
+  }
+  try {
+    await fs.promises.unlink(filePath);
     return true;
   } catch {
     return false;
   }
 }
 
-export function listSessions(): Array<{ id: string; createdAt: string; messageCount: number }> {
-  ensureSessionDir();
-  const files = fs.readdirSync(SESSION_DIR).filter((f) => f.endsWith('.json'));
-  return files
-    .map((f) => {
+export async function listSessions(): Promise<Array<{ id: string; createdAt: string; messageCount: number }>> {
+  await ensureSessionDir();
+  const files = await fs.promises.readdir(SESSION_DIR);
+  const jsonFiles = files.filter((f) => f.endsWith('.json'));
+
+  const results: Array<{ id: string; createdAt: string; messageCount: number } | null> = await Promise.all(
+    jsonFiles.map(async (f) => {
       try {
-        const raw = fs.readFileSync(path.join(SESSION_DIR, f), 'utf-8');
+        const raw = await fs.promises.readFile(path.join(SESSION_DIR, f), 'utf-8');
         const session: Session = JSON.parse(raw);
         return {
           id: session.id,
@@ -72,26 +84,29 @@ export function listSessions(): Array<{ id: string; createdAt: string; messageCo
         return null;
       }
     })
+  );
+
+  return results
     .filter((s): s is NonNullable<typeof s> => s !== null)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
-export function loadLatestSession(): Session | null {
-  const sessions = listSessions();
+export async function loadLatestSession(): Promise<Session | null> {
+  const sessions = await listSessions();
   if (sessions.length === 0) return null;
   return loadSession(sessions[0].id);
 }
 
-export function addToSession(session: Session, message: ChatMessage): Session {
+export async function addToSession(session: Session, message: ChatMessage): Promise<Session> {
   session.messages.push(message);
-  saveSession(session);
+  await saveSession(session);
   return session;
 }
 
-export function clearSessionMessages(session: Session): Session {
+export async function clearSessionMessages(session: Session): Promise<Session> {
   session.messages = [];
   session.updatedAt = new Date().toISOString();
-  saveSession(session);
+  await saveSession(session);
   return session;
 }
 
@@ -113,7 +128,7 @@ function estimateMessagesTokens(messages: ChatMessage[]): number {
   }, 0);
 }
 
-export function trimSessionContext(session: Session, maxTokens?: number): Session {
+export async function trimSessionContext(session: Session, maxTokens?: number): Promise<Session> {
   const limit = maxTokens || 32000;
   const totalTokens = estimateMessagesTokens(session.messages);
 
@@ -136,6 +151,6 @@ export function trimSessionContext(session: Session, maxTokens?: number): Sessio
   }
 
   session.messages = [...systemMsgs, ...kept];
-  saveSession(session);
+  await saveSession(session);
   return session;
 }

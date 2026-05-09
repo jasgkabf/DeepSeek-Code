@@ -11,6 +11,8 @@ import { performUninstall } from './uninstall';
 import { extractUserHabitFromMessage, recordUserHabit } from './memory';
 import { performSelfReview } from './review';
 import { maybePurify, getMemoryStats, forcePurify } from './purification';
+import { flushAudit } from './telemetry';
+import { userFriendlyMessage, classifyError } from './errors';
 
 export class Chat {
   private config: DeepSeekCodeConfig;
@@ -20,15 +22,20 @@ export class Chat {
   private pasting: boolean = false;
   private pasteBuffer: string[] = [];
 
-  constructor(config: DeepSeekCodeConfig) {
+  constructor(config: DeepSeekCodeConfig, session: Session) {
     this.config = config;
-    this.session = loadLatestSession() || createSession();
+    this.session = session;
     this.rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout,
       prompt: chalk.green.bold(' You ❯ '),
     });
     this.enableBracketPaste();
+  }
+
+  static async create(config: DeepSeekCodeConfig): Promise<Chat> {
+    const session = (await loadLatestSession()) || createSession();
+    return new Chat(config, session);
   }
 
   private enableBracketPaste(): void {
@@ -115,10 +122,11 @@ export class Chat {
       if (this.running) this.rl.prompt();
     });
 
-    this.rl.on('close', () => {
+    this.rl.on('close', async () => {
       if (this.running) {
         this.destroy();
-        saveSession(this.session);
+        await saveSession(this.session);
+        flushAudit();
         console.log();
         showInfo(`${brand()} 会话已保存，再见！`);
         this.running = false;
@@ -135,7 +143,7 @@ export class Chat {
         this.showHelp();
         break;
       case '/clear':
-        this.session = clearSessionMessages(this.session);
+        this.session = await clearSessionMessages(this.session);
         showSuccess('会话已清空');
         showDivider();
         break;
@@ -161,7 +169,7 @@ export class Chat {
         this.showHistory();
         break;
       case '/new': {
-        saveSession(this.session);
+        await saveSession(this.session);
         this.session = createSession();
         showSuccess('已创建新会话，旧会话已保存');
         showInfo('输入 /sessions 可查看历史会话，/load <id> 切换回去');
@@ -200,7 +208,7 @@ export class Chat {
         this.showSkills();
         break;
       case '/memory':
-        this.showMemory();
+        await this.showMemory();
         break;
       case '/skill': {
         if (parts.length < 2) {
@@ -213,7 +221,8 @@ export class Chat {
       case '/exit':
       case '/quit':
       case '/q':
-        saveSession(this.session);
+        await saveSession(this.session);
+        flushAudit();
         console.log();
         showInfo(`${brand()} 会话已保存，再见！`);
         this.running = false;
@@ -288,7 +297,7 @@ export class Chat {
   }
 
   private async showSessionsInteractive(): Promise<void> {
-    const sessions = listSessions();
+    const sessions = await listSessions();
     if (sessions.length === 0) {
       showInfo('暂无历史会话');
       return;
@@ -320,8 +329,8 @@ export class Chat {
       return;
     }
 
-    saveSession(this.session);
-    const loaded = loadSession(target.id);
+    await saveSession(this.session);
+    const loaded = await loadSession(target.id);
     if (loaded) {
       this.session = loaded;
       showSuccess(`已切换到聊天 ${idx + 1} (${loaded.messages.filter((m) => m.role === 'user').length} 条消息)`);
@@ -332,7 +341,7 @@ export class Chat {
   }
 
   private async loadSessionById(idOrIndex: string): Promise<void> {
-    const sessions = listSessions();
+    const sessions = await listSessions();
     const idx = parseInt(idOrIndex) - 1;
     let targetId: string;
 
@@ -347,19 +356,19 @@ export class Chat {
       return;
     }
 
-    const loaded = loadSession(targetId);
+    const loaded = await loadSession(targetId);
     if (!loaded) {
       showError(`会话不存在: ${idOrIndex}`);
       return;
     }
-    saveSession(this.session);
+    await saveSession(this.session);
     this.session = loaded;
     showSuccess(`已加载会话 (${loaded.messages.filter((m) => m.role === 'user').length} 条消息)`);
     showDivider();
   }
 
   private async deleteSessionById(idOrIndex: string): Promise<void> {
-    const sessions = listSessions();
+    const sessions = await listSessions();
     const idx = parseInt(idOrIndex) - 1;
     let targetId: string;
 
@@ -376,7 +385,7 @@ export class Chat {
 
     const confirmed = await askConfirmation('确认删除该会话?');
     if (confirmed) {
-      const deleted = deleteSession(targetId);
+      const deleted = await deleteSession(targetId);
       if (deleted) {
         showSuccess('会话已删除');
       } else {
@@ -387,15 +396,15 @@ export class Chat {
 
   private async handleUserMessage(input: string): Promise<void> {
     const habit = extractUserHabitFromMessage(input);
-    if (habit) recordUserHabit(habit);
+    if (habit) await recordUserHabit(habit);
 
     const userMessage: ChatMessage = {
       role: 'user',
       content: input,
     };
 
-    this.session = addToSession(this.session, userMessage);
-    this.session = trimSessionContext(this.session, this.config.maxContextTokens);
+    this.session = await addToSession(this.session, userMessage);
+    this.session = await trimSessionContext(this.session, this.config.maxContextTokens);
 
     console.log();
     showAssistantPrefix();
@@ -410,7 +419,7 @@ export class Chat {
       });
 
       for (const msg of newMessages) {
-        this.session = addToSession(this.session, msg);
+        this.session = await addToSession(this.session, msg);
         if (msg.tool_calls) toolCallsCount += msg.tool_calls.length;
         if (msg.role === 'tool' && msg.content && typeof msg.content === 'string') {
           if (msg.content.includes('error') || msg.content.includes('Error') || msg.content.includes('失败')) {
@@ -419,31 +428,20 @@ export class Chat {
         }
       }
 
-      performSelfReview(input, 
+      performSelfReview(input,
         newMessages.filter((m) => m.role === 'assistant' && m.content).map((m) => m.content || ''),
         toolCallsCount,
         hadErrors
       );
 
-      const purifyResult = maybePurify();
+      const purifyResult = await maybePurify();
       if (purifyResult.purified && purifyResult.result) {
-        const r = purifyResult.result;
-        if (r.removed > 0 || r.merged > 0) {
-          // silent purification, no user output
-        }
+        // silent purification
       }
     } catch (err: any) {
       hadErrors = true;
-      const msg = err.message || '';
-      if (msg.includes('401') || msg.includes('认证')) {
-        showErrorWithSuggestion(`处理消息时出错: ${msg}`, '请检查 API Key 是否正确，输入 /setup 重新配置');
-      } else if (msg.includes('429') || msg.includes('速率')) {
-        showErrorWithSuggestion(`处理消息时出错: ${msg}`, '请稍后重试，或检查 API 账户余额');
-      } else if (msg.includes('ECONNREFUSED') || msg.includes('ENOTFOUND')) {
-        showErrorWithSuggestion(`处理消息时出错: ${msg}`, '请检查网络连接，输入 /setup 确认 API 地址');
-      } else {
-        showError(`处理消息时出错: ${msg}`);
-      }
+      const friendly = userFriendlyMessage(err);
+      showError(friendly);
     }
 
     showDivider();
@@ -452,11 +450,12 @@ export class Chat {
   stop(): void {
     this.running = false;
     this.destroy();
+    flushAudit();
     this.rl.close();
   }
 
-  private showSkills(): void {
-    const builtinNames = listBuiltinSkillNames();
+  private async showSkills(): Promise<void> {
+    const builtinNames = await listBuiltinSkillNames();
     const skills = listInstalledSkills();
 
     console.log();
@@ -487,8 +486,8 @@ export class Chat {
     console.log();
   }
 
-  private showMemory(): void {
-    const stats = getMemoryStats();
+  private async showMemory(): Promise<void> {
+    const stats = await getMemoryStats();
     console.log();
     showInfo('🧠 智能体记忆与进化系统');
     console.log();

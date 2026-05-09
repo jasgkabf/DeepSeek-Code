@@ -23,15 +23,20 @@
     "test": "ts-node src/__tests__/safety.test.ts && ts-node src/__tests__/crypto.test.ts && ts-node src/__tests__/session.test.ts && ts-node src/__tests__/env.test.ts",
     "uninstall": "node -e \"const {performUninstall}=require('./dist/uninstall');const{setLanguage}=require('./dist/i18n');setLanguage('zh');performUninstall(true).then(r=>{console.log(r.message);if(r.success)process.exit(0);else process.exit(1);})\""
   },
-  "keywords": ["ai", "cli", "coding-assistant", "deepseek"],
+  "keywords": [
+    "ai",
+    "cli",
+    "coding-assistant",
+    "deepseek"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
     "chalk": "^4.1.2"
   },
   "devDependencies": {
-    "@types/node": "^20.11.0",
-    "typescript": "^5.3.3",
-    "ts-node": "^10.9.2"
+    "@types/node": "^20.19.40",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
   }
 }

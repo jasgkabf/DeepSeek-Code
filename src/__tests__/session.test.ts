@@ -4,11 +4,9 @@ import * as path from 'path';
 import * as os from 'os';
 import { createSession, saveSession, loadSession, deleteSession, listSessions, addToSession, clearSessionMessages } from '../session';
 
-const TEST_DIR = path.join(os.tmpdir(), 'deepseek-code-test-sessions-' + Date.now());
-
-function test(name: string, fn: () => void): void {
+async function test(name: string, fn: () => Promise<void>): Promise<void> {
   try {
-    fn();
+    await fn();
     console.log(`  ✓ ${name}`);
   } catch (err: any) {
     console.log(`  ✗ ${name}: ${err.message}`);
@@ -16,34 +14,36 @@ function test(name: string, fn: () => void): void {
   }
 }
 
-console.log('\n🧪 Session Module Tests\n');
+async function runTests(): Promise<void> {
+  console.log('\n🧪 Session Module Tests\n');
 
-const originalDir = process.env.HOME;
+  await test('createSession returns valid session', async () => {
+    const session = createSession();
+    assert.ok(session.id);
+    assert.ok(session.createdAt);
+    assert.ok(session.updatedAt);
+    assert.strictEqual(session.messages.length, 0);
+  });
 
-test('createSession returns valid session', () => {
-  const session = createSession();
-  assert.ok(session.id);
-  assert.ok(session.createdAt);
-  assert.ok(session.updatedAt);
-  assert.strictEqual(session.messages.length, 0);
-});
+  await test('addToSession appends message', async () => {
+    const session = createSession();
+    const updated = await addToSession(session, { role: 'user', content: 'hello' });
+    assert.strictEqual(updated.messages.length, 1);
+    assert.strictEqual(updated.messages[0].content, 'hello');
+  });
 
-test('addToSession appends message', () => {
-  const session = createSession();
-  const updated = addToSession(session, { role: 'user', content: 'hello' });
-  assert.strictEqual(updated.messages.length, 1);
-  assert.strictEqual(updated.messages[0].content, 'hello');
-});
+  await test('clearSessionMessages empties messages', async () => {
+    const session = createSession();
+    await addToSession(session, { role: 'user', content: 'hello' });
+    const cleared = await clearSessionMessages(session);
+    assert.strictEqual(cleared.messages.length, 0);
+  });
 
-test('clearSessionMessages empties messages', () => {
-  const session = createSession();
-  addToSession(session, { role: 'user', content: 'hello' });
-  const cleared = clearSessionMessages(session);
-  assert.strictEqual(cleared.messages.length, 0);
-});
+  await test('session has unique IDs', async () => {
+    const s1 = createSession();
+    const s2 = createSession();
+    assert.notStrictEqual(s1.id, s2.id);
+  });
+}
 
-test('session has unique IDs', () => {
-  const s1 = createSession();
-  const s2 = createSession();
-  assert.notStrictEqual(s1.id, s2.id);
-});
+runTests();

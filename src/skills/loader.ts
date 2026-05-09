@@ -14,12 +14,14 @@ interface BuiltinSkillInfo {
   instructions: string;
 }
 
-function parseSkillMd(skillDir: string): BuiltinSkillInfo | null {
+async function parseSkillMd(skillDir: string): Promise<BuiltinSkillInfo | null> {
   const skillMdPath = path.join(skillDir, 'SKILL.md');
-  if (!fs.existsSync(skillMdPath)) return null;
+  try {
+    await fs.promises.access(skillMdPath);
+  } catch { return null; }
 
   try {
-    const content = fs.readFileSync(skillMdPath, 'utf-8');
+    const content = await fs.promises.readFile(skillMdPath, 'utf-8');
     const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
     if (!frontmatterMatch) return null;
 
@@ -42,16 +44,18 @@ function parseSkillMd(skillDir: string): BuiltinSkillInfo | null {
   }
 }
 
-export function loadBuiltinSkills(): BuiltinSkillInfo[] {
+export async function loadBuiltinSkills(): Promise<BuiltinSkillInfo[]> {
   const skills: BuiltinSkillInfo[] = [];
-  if (!fs.existsSync(BUILTIN_SKILLS_DIR)) return skills;
+  try {
+    await fs.promises.access(BUILTIN_SKILLS_DIR);
+  } catch { return skills; }
 
   try {
-    const entries = fs.readdirSync(BUILTIN_SKILLS_DIR, { withFileTypes: true });
+    const entries = await fs.promises.readdir(BUILTIN_SKILLS_DIR, { withFileTypes: true });
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
       const skillDir = path.join(BUILTIN_SKILLS_DIR, entry.name);
-      const info = parseSkillMd(skillDir);
+      const info = await parseSkillMd(skillDir);
       if (info) {
         skills.push(info);
       }
@@ -61,20 +65,20 @@ export function loadBuiltinSkills(): BuiltinSkillInfo[] {
   return skills;
 }
 
-export function buildBuiltinSkillsPrompt(): string {
-  const skills = loadBuiltinSkills();
+export async function buildBuiltinSkillsPrompt(): Promise<string> {
+  const skills = await loadBuiltinSkills();
   if (skills.length === 0) return '';
 
   let prompt = '\n\n[内置Skills] 可用领域知识（按需参考）：';
   for (const skill of skills) {
-    const shortDesc = skill.instructions.substring(0, 500);
-    prompt += `\n- ${skill.name}: ${skill.description}${shortDesc ? ' | ' + shortDesc + (skill.instructions.length > 500 ? '...' : '') : ''}`;
+    prompt += `\n- ${skill.name}: ${skill.description} (需要时用read_file读取skills-builtin/${skill.name}/SKILL.md)`;
   }
   return prompt;
 }
 
-export function listBuiltinSkillNames(): string[] {
-  return loadBuiltinSkills().map((s) => s.name);
+export async function listBuiltinSkillNames(): Promise<string[]> {
+  const skills = await loadBuiltinSkills();
+  return skills.map((s) => s.name);
 }
 
 export function loadSkill(skillName: string): SkillInstance | null {
@@ -89,7 +93,6 @@ export function loadSkill(skillName: string): SkillInstance | null {
   if (!manifest) return null;
 
   const mainPath = path.join(skillDir, manifest.main);
-  if (!fs.existsSync(mainPath)) return null;
 
   try {
     delete require.cache[require.resolve(mainPath)];

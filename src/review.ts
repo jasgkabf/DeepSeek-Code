@@ -15,12 +15,12 @@ export interface ReviewResult {
   category: string;
 }
 
-export function performSelfReview(
+export async function performSelfReview(
   userMessage: string,
   assistantMessages: string[],
   toolCallsCount: number,
   hadErrors: boolean
-): ReviewResult | null {
+): Promise<ReviewResult | null> {
   if (assistantMessages.length === 0) return null;
 
   const category = categorizeTask(userMessage);
@@ -36,14 +36,15 @@ export function performSelfReview(
     optimizations = '工具调用次数较多，可能存在冗余步骤，下次尝试精简流程';
   }
 
-  const relevantExperiences = loadExperiences()
-    .filter((e) => e.category === category && e.weight >= 0.5)
+  const experiences = await loadExperiences();
+  const relevantExperiences = experiences
+    .filter((e: Experience) => e.category === category && e.weight >= 0.5)
     .slice(0, 3);
 
   let keyExperience = '';
   if (relevantExperiences.length > 0) {
     keyExperience = relevantExperiences
-      .map((e) => e.lessons)
+      .map((e: Experience) => e.lessons)
       .join('; ');
   }
 
@@ -63,11 +64,11 @@ export function performSelfReview(
   }
 
   if (keyExperience || detours || optimizations) {
-    addReview(taskGoal, detours, optimizations, keyExperience || '任务顺利完成', optimalFlow || '按当前流程执行即可');
+    await addReview(taskGoal, detours, optimizations, keyExperience || '任务顺利完成', optimalFlow || '按当前流程执行即可');
   }
 
   if (detours || optimizations) {
-    addExperience(
+    await addExperience(
       category,
       taskGoal,
       keyExperience || detours || optimizations,

@@ -1,14 +1,15 @@
 import { ChatMessage, DeepSeekCodeConfig, ToolDefinition, ToolResult } from '../types';
 import { chatCompletionStream, ChatCompletionResult, StreamCallbacks } from '../api/client';
 import { TOOL_DEFINITIONS, buildToolResults, setToolConfig } from './tools';
+import { BudgetController, DEFAULT_BUDGET, BudgetExceededReason } from './budget';
 import { showAssistantPrefix, showDivider, showError, showInfo, showWarning } from '../ui/display';
 import { detectEnvironment } from '../env';
 import { getSkillToolDefinitions, loadAllSkills, listBuiltinSkillNames } from '../skills/loader';
 import { listInstalledSkills } from '../skills/manager';
 import { buildMemoryPrompt } from '../memory';
 import { t } from '../i18n';
-
-const MAX_AGENT_ITERATIONS = 50;
+import { audit, AuditEventType } from '../telemetry';
+import { ErrorCode, AgentError } from '../errors';
 
 interface ToolCallRecord {
   name: string;
@@ -37,7 +38,7 @@ function makeArgsKey(name: string, argsStr: string): string {
   }
 }
 
-function buildSystemPrompt(): ChatMessage {
+async function buildSystemPrompt(): Promise<ChatMessage> {
   const env = detectEnvironment();
   let envNote = '';
   if (env.isTermux) {
@@ -51,13 +52,13 @@ function buildSystemPrompt(): ChatMessage {
     skillNote = `\n[已安装Skills] ${skillList}`;
   }
 
-  const builtinNames = listBuiltinSkillNames();
+  const builtinNames = await listBuiltinSkillNames();
   let builtinNote = '';
   if (builtinNames.length > 0) {
     builtinNote = `\n[内置Skills] ${builtinNames.join(', ')} (需要时用read_file读取skills-builtin/<名称>/SKILL.md)`;
   }
 
-  const memoryPrompt = buildMemoryPrompt();
+  const memoryPrompt = await buildMemoryPrompt();
 
   return {
     role: 'system',
@@ -98,10 +99,7 @@ function isDuplicateCall(
   return executedCalls.find((r) => r.argsKey === key) || null;
 }
 
-function isSimilarCommand(
-  newCmd: string,
-  oldCmd: string
-): boolean {
+function isSimilarCommand(newCmd: string, oldCmd: string): boolean {
   const normalize = (c: string) => c.replace(/\s+/g, ' ').replace(/['"]/g, '"').trim();
   return normalize(newCmd) === normalize(oldCmd);
 }
@@ -165,6 +163,7 @@ export interface AgentRunOptions {
   config: DeepSeekCodeConfig;
   messages: ChatMessage[];
   onContent?: (text: string) => void;
+  budget?: Partial<typeof DEFAULT_BUDGET>;
 }
 
 export async function runAgent(options: AgentRunOptions): Promise<ChatMessage[]> {
@@ -172,16 +171,23 @@ export async function runAgent(options: AgentRunOptions): Promise<ChatMessage[]>
   setToolConfig(config);
   loadAllSkills();
 
-  const systemPrompt = buildSystemPrompt();
+  const systemPrompt = await buildSystemPrompt();
   const allMessages: ChatMessage[] = [systemPrompt, ...messages];
   const newMessages: ChatMessage[] = [];
   const allTools = getAllToolDefinitions();
-  let iteration = 0;
+  const budget = new BudgetController(options.budget);
   const executedCalls: ToolCallRecord[] = [];
   let consecutiveSkips = 0;
 
-  while (iteration < MAX_AGENT_ITERATIONS) {
-    iteration++;
+  audit(AuditEventType.AGENT_STEP, { phase: 'start', budget: budget.getConfig() });
+
+  while (!budget.exceeded()) {
+    const stepReason = budget.step();
+    if (stepReason) {
+      showWarning(`预算超限: ${stepReason} | ${budget.summary()}`);
+      audit(AuditEventType.BUDGET_EXCEEDED, { reason: stepReason, state: budget.getState() });
+      break;
+    }
 
     const callbacks: StreamCallbacks = {
       onContent: (text) => {
@@ -199,9 +205,20 @@ export async function runAgent(options: AgentRunOptions): Promise<ChatMessage[]>
     let result: ChatCompletionResult;
     try {
       result = await chatCompletionStream(allMessages, allTools, config, callbacks);
+      audit(AuditEventType.API_RESPONSE, { usage: result.usage });
     } catch (err: any) {
+      const classified = new AgentError(ErrorCode.MODEL_ERROR, err.message, { cause: err, recoverable: true });
+      audit(AuditEventType.AGENT_ERROR, { code: classified.code, message: classified.message });
       showError(`请求失败: ${err.message}`);
       break;
+    }
+
+    if (result.usage) {
+      const tokenReason = budget.recordTokens(result.usage.prompt_tokens, result.usage.completion_tokens);
+      if (tokenReason) {
+        showWarning(`Token 预算超限: ${tokenReason}`);
+        break;
+      }
     }
 
     const assistantMessage = result.message;
@@ -217,6 +234,7 @@ export async function runAgent(options: AgentRunOptions): Promise<ChatMessage[]>
     if (dedupedCalls.length < assistantMessage.tool_calls.length) {
       const removed = assistantMessage.tool_calls.length - dedupedCalls.length;
       showWarning(`已跳过 ${removed} 个本轮重复调用`);
+      audit(AuditEventType.DUPLICATE_BLOCKED, { count: removed });
     }
 
     const callsToExecute: Array<{ id: string; function: { name: string; arguments: string } }> = [];
@@ -227,6 +245,7 @@ export async function runAgent(options: AgentRunOptions): Promise<ChatMessage[]>
       if (prev) {
         skippedCalls.push(tc);
         showWarning(`跳过重复: ${tc.function.name} (已执行过)`);
+        audit(AuditEventType.DUPLICATE_BLOCKED, { tool: tc.function.name, argsKey: makeArgsKey(tc.function.name, tc.function.arguments) });
       } else {
         callsToExecute.push(tc);
       }
@@ -253,6 +272,7 @@ export async function runAgent(options: AgentRunOptions): Promise<ChatMessage[]>
 
       if (consecutiveSkips >= 2) {
         showWarning('连续多次重复调用，强制终止');
+        audit(AuditEventType.LOOP_DETECTED, { consecutiveSkips });
         break;
       }
 
@@ -273,6 +293,7 @@ export async function runAgent(options: AgentRunOptions): Promise<ChatMessage[]>
 
     if (detectLoop(executedCalls)) {
       showWarning('检测到工具调用循环，自动终止');
+      audit(AuditEventType.LOOP_DETECTED, { recentCalls: executedCalls.slice(-3).map((c) => c.argsKey) });
       break;
     }
 
@@ -285,6 +306,13 @@ export async function runAgent(options: AgentRunOptions): Promise<ChatMessage[]>
       const tr = toolResults[i];
       const tc = callsToExecute[i];
       const enhancedContent = enhanceToolResult(tc.function.name, tc.function.arguments, tr.content, executedCalls);
+      const toolSuccess = !tr.content.startsWith('错误:');
+
+      const toolReason = budget.recordToolCall(toolSuccess);
+      if (toolReason) {
+        showWarning(`工具调用预算超限: ${toolReason}`);
+        break;
+      }
 
       const recordIdx = executedCalls.length - callsToExecute.length + i;
       if (recordIdx >= 0 && recordIdx < executedCalls.length) {
@@ -309,9 +337,8 @@ export async function runAgent(options: AgentRunOptions): Promise<ChatMessage[]>
     showAssistantPrefix();
   }
 
-  if (iteration >= MAX_AGENT_ITERATIONS) {
-    showInfo(t().agent.maxIterations);
-  }
+  audit(AuditEventType.AGENT_COMPLETE, { state: budget.getState() });
+  showInfo(budget.summary());
 
   return newMessages;
 }

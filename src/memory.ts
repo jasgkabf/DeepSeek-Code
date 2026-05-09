@@ -42,9 +42,11 @@ const MAX_REVIEWS = 50;
 const LOW_WEIGHT_THRESHOLD = 0.1;
 const SIMILARITY_MERGE_THRESHOLD = 0.7;
 
-function ensureDir(): void {
-  if (!fs.existsSync(MEMORY_DIR)) {
-    fs.mkdirSync(MEMORY_DIR, { recursive: true });
+async function ensureDir(): Promise<void> {
+  try {
+    await fs.promises.access(MEMORY_DIR);
+  } catch {
+    await fs.promises.mkdir(MEMORY_DIR, { recursive: true });
   }
 }
 
@@ -52,47 +54,56 @@ function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substring(2, 7);
 }
 
-export function loadExperiences(): Experience[] {
-  ensureDir();
+export async function loadExperiences(): Promise<Experience[]> {
+  await ensureDir();
   try {
-    if (!fs.existsSync(EXPERIENCES_FILE)) return [];
-    return JSON.parse(fs.readFileSync(EXPERIENCES_FILE, 'utf-8'));
+    await fs.promises.access(EXPERIENCES_FILE);
+  } catch { return []; }
+  try {
+    const raw = await fs.promises.readFile(EXPERIENCES_FILE, 'utf-8');
+    return JSON.parse(raw);
   } catch { return []; }
 }
 
-export function saveExperiences(experiences: Experience[]): void {
-  ensureDir();
-  fs.writeFileSync(EXPERIENCES_FILE, JSON.stringify(experiences, null, 2));
+export async function saveExperiences(experiences: Experience[]): Promise<void> {
+  await ensureDir();
+  await fs.promises.writeFile(EXPERIENCES_FILE, JSON.stringify(experiences, null, 2));
 }
 
-export function loadHabits(): UserHabit[] {
-  ensureDir();
+export async function loadHabits(): Promise<UserHabit[]> {
+  await ensureDir();
   try {
-    if (!fs.existsSync(HABITS_FILE)) return [];
-    return JSON.parse(fs.readFileSync(HABITS_FILE, 'utf-8'));
+    await fs.promises.access(HABITS_FILE);
+  } catch { return []; }
+  try {
+    const raw = await fs.promises.readFile(HABITS_FILE, 'utf-8');
+    return JSON.parse(raw);
   } catch { return []; }
 }
 
-export function saveHabits(habits: UserHabit[]): void {
-  ensureDir();
-  fs.writeFileSync(HABITS_FILE, JSON.stringify(habits, null, 2));
+export async function saveHabits(habits: UserHabit[]): Promise<void> {
+  await ensureDir();
+  await fs.promises.writeFile(HABITS_FILE, JSON.stringify(habits, null, 2));
 }
 
-export function loadReviews(): Review[] {
-  ensureDir();
+export async function loadReviews(): Promise<Review[]> {
+  await ensureDir();
   try {
-    if (!fs.existsSync(REVIEW_FILE)) return [];
-    return JSON.parse(fs.readFileSync(REVIEW_FILE, 'utf-8'));
+    await fs.promises.access(REVIEW_FILE);
+  } catch { return []; }
+  try {
+    const raw = await fs.promises.readFile(REVIEW_FILE, 'utf-8');
+    return JSON.parse(raw);
   } catch { return []; }
 }
 
-export function saveReviews(reviews: Review[]): void {
-  ensureDir();
-  fs.writeFileSync(REVIEW_FILE, JSON.stringify(reviews, null, 2));
+export async function saveReviews(reviews: Review[]): Promise<void> {
+  await ensureDir();
+  await fs.promises.writeFile(REVIEW_FILE, JSON.stringify(reviews, null, 2));
 }
 
-export function addExperience(category: string, task: string, lessons: string, optimalFlow: string): Experience {
-  const experiences = loadExperiences();
+export async function addExperience(category: string, task: string, lessons: string, optimalFlow: string): Promise<Experience> {
+  const experiences = await loadExperiences();
 
   const similar = findSimilarExperience(experiences, category, task);
   if (similar) {
@@ -101,7 +112,7 @@ export function addExperience(category: string, task: string, lessons: string, o
     similar.weight = Math.min(similar.weight + 0.1, 1.0);
     similar.lastUsedAt = Date.now();
     similar.useCount++;
-    saveExperiences(experiences);
+    await saveExperiences(experiences);
     return similar;
   }
 
@@ -124,7 +135,7 @@ export function addExperience(category: string, task: string, lessons: string, o
     experiences.splice(MAX_EXPERIENCES);
   }
 
-  saveExperiences(experiences);
+  await saveExperiences(experiences);
   return exp;
 }
 
@@ -145,8 +156,8 @@ function findSimilarExperience(experiences: Experience[], category: string, task
   return null;
 }
 
-export function recordUserHabit(pattern: string): void {
-  const habits = loadHabits();
+export async function recordUserHabit(pattern: string): Promise<void> {
+  const habits = await loadHabits();
   const existing = habits.find((h) => h.pattern === pattern);
   if (existing) {
     existing.frequency++;
@@ -163,11 +174,11 @@ export function recordUserHabit(pattern: string): void {
     habits.sort((a, b) => b.frequency - a.frequency);
     habits.splice(MAX_HABITS);
   }
-  saveHabits(habits);
+  await saveHabits(habits);
 }
 
-export function addReview(taskGoal: string, detours: string, optimizations: string, keyExperience: string, optimalFlow: string): Review {
-  const reviews = loadReviews();
+export async function addReview(taskGoal: string, detours: string, optimizations: string, keyExperience: string, optimalFlow: string): Promise<Review> {
+  const reviews = await loadReviews();
   const review: Review = {
     id: generateId(),
     taskGoal,
@@ -181,12 +192,12 @@ export function addReview(taskGoal: string, detours: string, optimizations: stri
   if (reviews.length > MAX_REVIEWS) {
     reviews.splice(MAX_REVIEWS);
   }
-  saveReviews(reviews);
+  await saveReviews(reviews);
   return review;
 }
 
-export function purifyMemories(): { removed: number; merged: number; downgraded: number } {
-  const experiences = loadExperiences();
+export async function purifyMemories(): Promise<{ removed: number; merged: number; downgraded: number }> {
+  const experiences = await loadExperiences();
   let removed = 0;
   let merged = 0;
   let downgraded = 0;
@@ -228,21 +239,21 @@ export function purifyMemories(): { removed: number; merged: number; downgraded:
     }
   }
 
-  saveExperiences(experiences);
+  await saveExperiences(experiences);
 
-  const habits = loadHabits();
+  const habits = await loadHabits();
   const beforeHabits = habits.length;
   const filtered = habits.filter((h) => h.frequency > 1 || (now - h.lastSeenAt) < ONE_WEEK);
   removed += beforeHabits - filtered.length;
-  saveHabits(filtered);
+  await saveHabits(filtered);
 
   return { removed, merged, downgraded };
 }
 
-export function buildMemoryPrompt(): string {
-  const experiences = loadExperiences();
-  const habits = loadHabits();
-  const reviews = loadReviews();
+export async function buildMemoryPrompt(): Promise<string> {
+  const experiences = await loadExperiences();
+  const habits = await loadHabits();
+  const reviews = await loadReviews();
 
   if (experiences.length === 0 && habits.length === 0 && reviews.length === 0) {
     return '';
