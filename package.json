@@ -32,10 +32,14 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "chalk": "^4.1.2"
+    "chalk": "^4.1.2",
+    "express": "^5.2.1",
+    "ws": "^8.20.0"
   },
   "devDependencies": {
+    "@types/express": "^5.0.6",
     "@types/node": "^20.19.40",
+    "@types/ws": "^8.18.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
   }
