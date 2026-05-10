@@ -65,7 +65,7 @@ export async function startWebServer(config: DeepSeekCodeConfig, port?: number):
     });
   });
 
-  server.listen(actualPort, () => {
+  server.listen(actualPort, '0.0.0.0', () => {
     console.log(`\n  🌐 DeepSeek Code Web UI`);
     console.log(`  ─────────────────────────`);
     console.log(`  本地访问: http://localhost:${actualPort}`);
