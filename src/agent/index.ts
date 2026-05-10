@@ -163,11 +163,13 @@ export interface AgentRunOptions {
   config: DeepSeekCodeConfig;
   messages: ChatMessage[];
   onContent?: (text: string) => void;
+  onToolCall?: (name: string, args: string) => void;
+  onToolResult?: (name: string, result: string, isError: boolean) => void;
   budget?: Partial<typeof DEFAULT_BUDGET>;
 }
 
 export async function runAgent(options: AgentRunOptions): Promise<ChatMessage[]> {
-  const { config, messages, onContent } = options;
+  const { config, messages, onContent, onToolCall, onToolResult } = options;
   setToolConfig(config);
   loadAllSkills();
 
@@ -284,6 +286,7 @@ export async function runAgent(options: AgentRunOptions): Promise<ChatMessage[]>
     consecutiveSkips = 0;
 
     for (const tc of callsToExecute) {
+      onToolCall?.(tc.function.name, tc.function.arguments);
       executedCalls.push({
         name: tc.function.name,
         argsKey: makeArgsKey(tc.function.name, tc.function.arguments),
@@ -318,6 +321,8 @@ export async function runAgent(options: AgentRunOptions): Promise<ChatMessage[]>
       if (recordIdx >= 0 && recordIdx < executedCalls.length) {
         executedCalls[recordIdx].result = tr.content.substring(0, 500);
       }
+
+      onToolResult?.(tc.function.name, tr.content, !toolSuccess);
 
       const msg: ChatMessage = {
         role: 'tool',
